@@ -165,12 +165,18 @@ async function responseJson(response: Response, service: string): Promise<unknow
   return body;
 }
 
+function withTimeout(milliseconds: number, signal?: AbortSignal): AbortSignal {
+  const timeout = AbortSignal.timeout(milliseconds);
+  return signal ? AbortSignal.any([signal, timeout]) : timeout;
+}
+
 export async function generateQwenImage(
   input: QwenImageInput,
   {
     environment = process.env,
     fetchImpl = fetch,
-  }: { environment?: QwenEnvironment; fetchImpl?: Fetch } = {},
+    signal,
+  }: { environment?: QwenEnvironment; fetchImpl?: Fetch; signal?: AbortSignal } = {},
 ): Promise<QwenImageResult> {
   const generation = await fetchImpl(QWEN_IMAGE_ENDPOINT, {
     method: "POST",
@@ -179,12 +185,12 @@ export async function generateQwenImage(
       "Content-Type": "application/json",
     },
     body: JSON.stringify(buildQwenImageRequest(input)),
-    signal: AbortSignal.timeout(90_000),
+    signal: withTimeout(90_000, signal),
   });
   const parsed = parseQwenImageResponse(await responseJson(generation, "Qwen"));
 
   const image = await fetchImpl(parsed.imageUrl, {
-    signal: AbortSignal.timeout(30_000),
+    signal: withTimeout(30_000, signal),
   });
   if (!image.ok) throw new Error(`Qwen image download failed (${image.status})`);
   if (!image.headers.get("content-type")?.toLowerCase().startsWith("image/png")) {

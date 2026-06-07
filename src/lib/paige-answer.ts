@@ -8,6 +8,23 @@ const RETRIEVAL_TIMEOUT_MS = 12_000;
 const MOSS_QUERY_TIMEOUT_MS = 3_000;
 const MOSS_MANAGE_TIMEOUT_MS = 4_000;
 const MODEL_TIMEOUT_MS = 15_000;
+const CONVERSATION_MAX_TOKENS = 220;
+
+// Paige's voice when a question doesn't match any indexed company document.
+// She still answers as a meeting copilot — chat, brainstorm, facilitate — rather
+// than going silent. Spoken aloud, so: no markdown, no lists, no emoji.
+const CONVERSATION_SYSTEM_PROMPT = [
+  "You are Paige, a warm, sharp live meeting copilot sitting in on a meeting.",
+  "Reply directly to the speaker in one to three short, natural sentences meant to be read aloud.",
+  "You can chat, brainstorm, summarize discussion, and help facilitate the meeting.",
+  "You can search the company's indexed documents, but this message did not match any of them.",
+  "If it asks for specific company data, say you don't see it in the indexed documents and invite a rephrase; never invent company figures.",
+  "Do not use markdown, bullet points, headings, or emoji.",
+].join(" ");
+
+// Last resort when even the conversational model call fails — Paige still speaks.
+const CONVERSATION_FALLBACK =
+  "I'm here, but I'm having trouble reaching my tools right now — could you ask me again in a moment?";
 
 export interface PaigeCitation {
   sourceFile: string;
@@ -381,7 +398,7 @@ function buildPrompt(question: string, documents: RetrievedDocument[]): string {
 }
 
 function questionRequestsChart(question: string): boolean {
-  return /\b(compare|comparison|trend|chart|graph|visuali[sz]e|across|breakdown|versus|vs\.?|over time|by year|by quarter|by month)\b/i.test(
+  return /\b(compare|comparison|trend|chart|graph|visuali[sz]e|across|breakdown|versus|vs\.?|over time|by year|by quarter|by month|change[ds]?|grow|grew|growth|increase[ds]?|decrease[ds]?|rose|fell|history)\b/i.test(
     question,
   );
 }
@@ -481,19 +498,29 @@ function labelTokens(label: string): string[] {
   );
 }
 
+// The chart unit (e.g. "USD millions", "%") is often declared once — in a table
+// header or sentence — rather than beside every cell. Require the unit's currency
+// and scale qualifiers to appear *somewhere* in the cited documents, instead of
+// adjacent to each number. This still rejects unit changes (e.g. millions→billions)
+// because the wrong scale word won't be present at all.
+function documentsSupportUnit(unit: string, documents: RetrievedDocument[]): boolean {
+  const required = unitQualifiers(unit);
+  if (required.size === 0) return true;
+  const present = new Set<string>();
+  for (const document of documents) {
+    for (const qualifier of unitQualifiers(document.text)) present.add(qualifier);
+  }
+  return [...required].every((qualifier) => present.has(qualifier));
+}
+
 function chartIsGrounded(chart: PaigeChart, documents: RetrievedDocument[]): boolean {
-  const requiredUnitQualifiers = unitQualifiers(chart.unit);
+  if (!documentsSupportUnit(chart.unit, documents)) return false;
 
   return chart.values.every((value, index) => {
     const tokens = labelTokens(chart.labels[index]);
     return documents.some((document) =>
       extractNumberMentions(document.text).some((mention) => {
-        if (
-          !numbersEqual(value, mention.value) ||
-          !qualifiersMatch(requiredUnitQualifiers, mention.qualifiers)
-        ) {
-          return false;
-        }
+        if (!numbersEqual(value, mention.value)) return false;
         const nearbyText = document.text
           .slice(Math.max(0, mention.start - 48), Math.min(document.text.length, mention.end + 48))
           .toLowerCase();
@@ -508,15 +535,29 @@ function ungroundedAnswerMentions(
   documents: RetrievedDocument[],
 ): NumberMention[] {
   const sourceMentions = documents.flatMap((document) => extractNumberMentions(document.text));
+  // Currency/scale words are often stated once per document (a table header or
+  // sentence). Accept the answer's unit qualifiers if they appear anywhere in the
+  // cited documents; the exact numeric value must still be present in a source.
+  const supportedQualifiers = new Set<string>();
+  for (const document of documents) {
+    for (const qualifier of unitQualifiers(document.text)) supportedQualifiers.add(qualifier);
+  }
 
-  return extractNumberMentions(answer).filter(
-    (answerMention) =>
-      !sourceMentions.some(
-        (sourceMention) =>
-          numbersEqual(answerMention.value, sourceMention.value) &&
-          qualifiersMatch(answerMention.qualifiers, sourceMention.qualifiers),
-      ),
-  );
+  return extractNumberMentions(answer).filter((answerMention) => {
+    const valuePresent = sourceMentions.some(
+      (sourceMention) =>
+        numbersEqual(answerMention.value, sourceMention.value) &&
+        qualifiersMatch(answerMention.qualifiers, sourceMention.qualifiers),
+    );
+    if (valuePresent) return false;
+    const valueAppears = sourceMentions.some((sourceMention) =>
+      numbersEqual(answerMention.value, sourceMention.value),
+    );
+    const qualifiersSupported = [...answerMention.qualifiers].every((qualifier) =>
+      supportedQualifiers.has(qualifier),
+    );
+    return !(valueAppears && qualifiersSupported);
+  });
 }
 
 export function parseModelAnswer(
@@ -682,15 +723,112 @@ export async function generateAnswerFromDocuments(
   return parseModelAnswer(parsed, documents, model);
 }
 
+// Free-form answer for anything that isn't a company-document lookup: greetings,
+// brainstorming, meeting facilitation, or questions the index simply can't answer.
+// Always resolves to something Paige can say out loud — never throws (except on abort).
+export async function generateConversationalAnswer(
+  question: string,
+  dependencies: AnswerDependencies = {},
+): Promise<PaigeAnswer> {
+  const environment = dependencies.environment ?? process.env;
+  const fetchImpl = dependencies.fetchImpl ?? fetch;
+  const model = environment.TRUEFOUNDRY_MODEL?.trim() || DEFAULT_MODEL;
+  const fallback: PaigeAnswer = {
+    answer: CONVERSATION_FALLBACK,
+    citations: [],
+    chart: null,
+    model,
+  };
+
+  let baseUrl: string;
+  let apiKey: string;
+  try {
+    baseUrl = requireValue(environment, "TRUEFOUNDRY_BASE_URL").replace(/\/$/, "");
+    apiKey = requireValue(environment, "TRUEFOUNDRY_API_KEY");
+  } catch {
+    return fallback;
+  }
+
+  const timeoutSignal = AbortSignal.timeout(MODEL_TIMEOUT_MS);
+  try {
+    const response = await fetchImpl(`${baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: "system", content: CONVERSATION_SYSTEM_PROMPT },
+          { role: "user", content: question },
+        ],
+        reasoning_effort: "none",
+        max_completion_tokens: CONVERSATION_MAX_TOKENS,
+      }),
+      signal: dependencies.signal
+        ? AbortSignal.any([dependencies.signal, timeoutSignal])
+        : timeoutSignal,
+    });
+
+    const body = (await response.json().catch(() => null)) as unknown;
+    if (!response.ok || !isRecord(body)) {
+      throw new Error(`TrueFoundry conversation failed with status ${response.status}`);
+    }
+    const choices = body.choices;
+    const content =
+      Array.isArray(choices) &&
+      isRecord(choices[0]) &&
+      isRecord(choices[0].message) &&
+      typeof choices[0].message.content === "string"
+        ? choices[0].message.content.trim()
+        : "";
+    if (!content) throw new Error("TrueFoundry returned no conversation content");
+
+    return { answer: content.slice(0, 600), citations: [], chart: null, model };
+  } catch (error) {
+    if (dependencies.signal?.aborted) throw error;
+    return fallback;
+  }
+}
+
 export async function askPaige(
   question: string,
   dependencies: AnswerDependencies = {},
 ): Promise<PaigeAnswer> {
-  const documents = await withTimeout(
-    retrieveMossDocuments(question, dependencies),
-    RETRIEVAL_TIMEOUT_MS,
-    "Moss retrieval timed out",
-    dependencies.signal,
-  );
-  return generateAnswerFromDocuments(question, documents, dependencies);
+  let documents: RetrievedDocument[] = [];
+  try {
+    documents = await withTimeout(
+      retrieveMossDocuments(question, dependencies),
+      RETRIEVAL_TIMEOUT_MS,
+      "Moss retrieval timed out",
+      dependencies.signal,
+    );
+  } catch (error) {
+    // A flaky or unreachable index must not silence Paige — fall back to
+    // conversation. Genuine caller cancellation still propagates.
+    if (dependencies.signal?.aborted) throw error;
+    documents = [];
+  }
+
+  if (documents.length === 0) {
+    return generateConversationalAnswer(question, dependencies);
+  }
+
+  let grounded: PaigeAnswer;
+  try {
+    grounded = await generateAnswerFromDocuments(question, documents, dependencies);
+  } catch (error) {
+    // Generation or output validation failed (e.g. the model cited a page that
+    // didn't carry a number it mentioned). Don't hard-fail the whole request —
+    // Paige still answers conversationally.
+    if (dependencies.signal?.aborted) throw error;
+    return generateConversationalAnswer(question, dependencies);
+  }
+  // The model found the documents but none actually supported an answer; rather
+  // than the dead-end "I couldn't find that", let Paige respond conversationally.
+  if (grounded.citations.length === 0) {
+    return generateConversationalAnswer(question, dependencies);
+  }
+  return grounded;
 }

@@ -50,20 +50,41 @@ Full approved design/plan (outside the repo): `~/.gstack/projects/paige/stanleyh
   validated concise answer, citations, and source-grounded chart data. `PaigeListener`
   renders the result and speaks it through `/api/tts`. Production browser verification
   succeeded on `paige-beta.vercel.app`.
-- Then: citations/chart polish (#5), Qwen-vs-MiniMax image race (#6), live upload (#7),
-  rehearse (#8), submit (#9). See `README.md` for the full checklist.
+- **Task #5 — citations/chart polish: COMPLETE.** Charts now actually render and ground:
+  the unit (e.g. "USD millions") is matched against the whole cited document, not beside
+  every cell, so values pulled from tables/headers pass. Same relaxation applied to the
+  spoken-answer number check so a table-only value no longer hard-fails the request.
+- **Task #6 — Qwen vs MiniMax image race: COMPLETE.** `/api/image` runs both providers
+  via `src/lib/image-race.ts`; first valid image wins, the loser is aborted, and the
+  result is returned as a data URL labeled with the winning model. If both fail the client
+  keeps the deterministic chart. Wired into the room as the slow beat.
+- **General conversation + resilience: COMPLETE.** `askPaige` no longer dead-ends on
+  off-corpus questions or a flaky index — it falls back to a spoken conversational answer
+  (`generateConversationalAnswer`). Retrieval errors and answer-validation throws degrade to
+  conversation instead of a 502.
+- **Paige presence: COMPLETE.** Paige is a participant tile in the room grid and "shares
+  her screen" (a featured `PaigeStage`) when she has a cited answer/chart/image to present.
+- **Demo company drive: COMPLETE.** `/demo-company` is now a Google-Drive-style browser
+  (`DriveExplorer`); clicking a file opens a preview that renders the document pages, so the
+  data Paige cites is visible.
+- Remaining: live upload (#7), two real Chrome mic + two-person LiveKit rehearsals (#8),
+  final demo script + fallback recording + submission (#9). See `README.md`.
 
 ## File map
 ```
 src/app/page.tsx            landing
-src/app/demo-company/page.tsx FDC synthetic company workspace
+src/app/demo-company/page.tsx FDC company drive (server) — header + DriveExplorer + prompts
+src/app/demo-company/DriveExplorer.tsx  Google-Drive-style file browser + page preview (client)
 src/app/room/page.tsx       room (server wrapper)
-src/app/room/RoomClient.tsx prejoin + LiveKitRoom + video grid (client)
-src/app/room/PaigeListener.tsx  Paige's brain (client): Web Speech STT + wake word + chat + TTS playback
+src/app/room/RoomClient.tsx prejoin + LiveKitRoom + custom grid (Paige as a tile) + screen-share stage (client)
+src/app/room/PaigeListener.tsx  Paige's brain (usePaige hook) + PaigeTile/PaigeStage/PaigeDock/AnswerChart
 src/app/api/token/route.ts  LiveKit JWT minting (server)
 src/app/api/tts/route.ts    MiniMax TTS -> MP3 (server)
 src/app/api/ask/route.ts    Moss retrieval -> TrueFoundry answer + citations/chart
-src/lib/paige-answer.ts     grounded answer orchestration + output validation
+src/app/api/image/route.ts  Qwen vs MiniMax image race -> winning data URL (server)
+src/lib/paige-answer.ts     grounded answer + conversational fallback + output validation
+src/lib/image-race.ts       Qwen/MiniMax race, prompt builder, data-URL packaging
+src/lib/minimax-image.ts    MiniMax image-01 client (server-only)
 src/data/fdc.ts             shared FDC dashboard and corpus facts
 src/lib/room.ts             hardcoded room name "paige-room"
 src/lib/speech.ts           Web Speech API types + factory
@@ -128,6 +149,17 @@ In `.env` (gitignored). `.env.example` documents all. Deployed ones are also on 
 8. **Google Drive should be an import source, not the live answer path.** Keep Moss as the
    query-time knowledge base. A future "Connect Drive" flow should use OAuth, let a user
    select a folder, parse supported files, and sync page-cited content into Moss.
+9. **MiniMax image API:** `POST api.minimax.io/v1/image_generation`, model `image-01`,
+   `response_format:"url"`. Result is `data.image_urls[0]` — often **http** (not https) on an
+   `*.aliyuncs.com` OSS bucket, content-type `image/jpeg`. The URL validator allows http +
+   `.aliyuncs.com` for MiniMax (Qwen stays https + `dashscope-result-*`).
+10. **Chart/answer grounding is document-wide for units.** Tables declare the unit once
+   ("All currency values are in USD millions"), so the validator checks the unit appears
+   somewhere in the cited docs while still requiring the exact value next to its label.
+   Wrong scale (millions→billions) still fails because the scale word isn't present.
+11. **Paige is not a real LiveKit participant.** Her tile + "screen share" are client-side
+   composition (`PaigeTile`/`PaigeStage` in the custom grid), not a published track. The
+   real-participant path is still parked in `agent/`.
 
 ## Demo target
 Two people in `/room` on webcams. Open `/demo-company` for the prepared FDC prompts, then

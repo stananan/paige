@@ -15,8 +15,8 @@ export default function Home() {
           <span className="font-medium text-foreground">
             &ldquo;Paige, compare our revenue the last 10 years&rdquo;
           </span>{" "}
-          — she retrieves a cited answer, speaks it, shows the chart, and drops in a
-          generated visual a beat later.
+          — she retrieves a cited answer, speaks it, shares her screen with the chart, and
+          drops in a generated visual a beat later.
         </p>
 
         <div className="flex flex-col items-center gap-3 sm:flex-row">

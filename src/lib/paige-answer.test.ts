@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import {
+  askPaige,
   generateAnswerFromDocuments,
+  generateConversationalAnswer,
   parseModelAnswer,
   retrieveMossDocuments,
   type RetrievedDocument,
@@ -284,6 +286,28 @@ describe("parseModelAnswer", () => {
     ).toThrow("numbers absent from cited sources");
   });
 
+  test("accepts answer numbers whose unit is declared once for the document", () => {
+    const tableDocs: RetrievedDocument[] = [
+      {
+        sourceFile: "annual.pdf",
+        page: "1",
+        text: "All currency values are in USD millions.\nFY2022 | 18.4\nFY2025 | 68.4",
+      },
+    ];
+
+    const answer = parseModelAnswer(
+      {
+        answer: "Revenue grew from $18.4 million in FY2022 to $68.4 million in FY2025.",
+        citations: [1],
+        chart: null,
+      },
+      tableDocs,
+      "test-model",
+    );
+
+    expect(answer.citations).toEqual([{ sourceFile: "annual.pdf", page: "1" }]);
+  });
+
   test("turns uncited output into an explicit no-results answer", () => {
     const answer = parseModelAnswer(
       {
@@ -422,5 +446,154 @@ describe("generateAnswerFromDocuments", () => {
     expect(requestSignal).toBeInstanceOf(AbortSignal);
     controller.abort();
     expect(requestSignal?.aborted).toBe(true);
+  });
+});
+
+const conversationEnvironment = {
+  ...mossEnvironment,
+  TRUEFOUNDRY_BASE_URL: "https://gateway.truefoundry.ai",
+  TRUEFOUNDRY_API_KEY: "test-key",
+  TRUEFOUNDRY_MODEL: "openai/gpt-5.4-mini",
+};
+
+describe("generateConversationalAnswer", () => {
+  test("returns a spoken reply with no sources or chart", async () => {
+    const answer = await generateConversationalAnswer("What is a good standup format?", {
+      environment: conversationEnvironment,
+      fetchImpl: async (input, init) => {
+        expect(String(input)).toBe("https://gateway.truefoundry.ai/chat/completions");
+        const request = JSON.parse(String(init?.body));
+        expect(request.messages[0].content).toContain("live meeting copilot");
+        expect(request.response_format).toBeUndefined();
+        return Response.json({
+          choices: [
+            { message: { content: "Keep it to fifteen minutes: yesterday, today, blockers." } },
+          ],
+        });
+      },
+    });
+
+    expect(answer.answer).toContain("fifteen minutes");
+    expect(answer.citations).toEqual([]);
+    expect(answer.chart).toBeNull();
+  });
+
+  test("falls back to a safe spoken line when the model call fails", async () => {
+    const answer = await generateConversationalAnswer("hello", {
+      environment: conversationEnvironment,
+      fetchImpl: async () => new Response("nope", { status: 500 }),
+    });
+
+    expect(answer.answer).toContain("trouble reaching my tools");
+    expect(answer.citations).toEqual([]);
+    expect(answer.chart).toBeNull();
+  });
+});
+
+describe("askPaige conversational fallback", () => {
+  test("answers conversationally when the index is unreachable", async () => {
+    const answer = await askPaige("Hi Paige, can you introduce yourself?", {
+      environment: conversationEnvironment,
+      fetchImpl: async (input) => {
+        const url = String(input);
+        if (url.includes("service.usemoss.dev")) {
+          return new Response("Unavailable", { status: 503 });
+        }
+        if (url.endsWith("/chat/completions")) {
+          return Response.json({
+            choices: [
+              {
+                message: {
+                  content: "I'm Paige — I listen in and pull up cited answers when you need them.",
+                },
+              },
+            ],
+          });
+        }
+        throw new Error(`unexpected request: ${url}`);
+      },
+    });
+
+    expect(answer.answer).toContain("Paige");
+    expect(answer.citations).toEqual([]);
+    expect(answer.chart).toBeNull();
+  });
+
+  test("answers conversationally when retrieved documents don't support the question", async () => {
+    const answer = await askPaige("What's the weather like today?", {
+      environment: conversationEnvironment,
+      fetchImpl: async (input, init) => {
+        const url = String(input);
+        if (url.endsWith("/identity/auth/token")) {
+          return Response.json({ token: "moss-token" }, { status: 201 });
+        }
+        if (url.endsWith("/query")) {
+          return Response.json({ docs: [asMossDocument(documents[0])] });
+        }
+        if (url.endsWith("/manage")) {
+          return Response.json([]);
+        }
+        if (url.endsWith("/chat/completions")) {
+          const request = JSON.parse(String(init?.body));
+          if (String(request.messages[0].content).includes("Return JSON only")) {
+            return Response.json({
+              choices: [
+                { message: { content: JSON.stringify({ answer: "n/a", citations: [], chart: null }) } },
+              ],
+            });
+          }
+          return Response.json({
+            choices: [
+              {
+                message: {
+                  content: "I don't see that in the indexed documents, but I can help another way.",
+                },
+              },
+            ],
+          });
+        }
+        throw new Error(`unexpected request: ${url}`);
+      },
+    });
+
+    expect(answer.answer).toContain("indexed documents");
+    expect(answer.citations).toEqual([]);
+    expect(answer.chart).toBeNull();
+  });
+
+  test("still returns grounded answers when the documents support the question", async () => {
+    const answer = await askPaige("What was 2025 revenue?", {
+      environment: conversationEnvironment,
+      fetchImpl: async (input, init) => {
+        const url = String(input);
+        if (url.endsWith("/identity/auth/token")) {
+          return Response.json({ token: "moss-token" }, { status: 201 });
+        }
+        if (url.endsWith("/query")) {
+          return Response.json({ docs: [asMossDocument(documents[1])] });
+        }
+        if (url.endsWith("/chat/completions")) {
+          const request = JSON.parse(String(init?.body));
+          expect(String(request.messages[0].content)).toContain("Return JSON only");
+          return Response.json({
+            choices: [
+              {
+                message: {
+                  content: JSON.stringify({
+                    answer: "Revenue reached $210 million in 2025.",
+                    citations: [1],
+                    chart: null,
+                  }),
+                },
+              },
+            ],
+          });
+        }
+        throw new Error(`unexpected request: ${url}`);
+      },
+    });
+
+    expect(answer.answer).toContain("$210 million");
+    expect(answer.citations).toEqual([{ sourceFile: "annual-report.pdf", page: "8" }]);
   });
 });
