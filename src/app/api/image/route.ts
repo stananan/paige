@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { buildIllustrationPrompt, raceImageProviders } from "@/lib/image-race";
+import {
+  buildPresentationImagePrompt,
+  generatePresentationImage,
+} from "@/lib/presentation-image";
 
 // Paige's "slow beat": a generated illustration that arrives after the spoken,
-// cited answer. Qwen and MiniMax race; the first valid image wins. If both fail the
-// client simply keeps the cited card/chart, so this route is best-effort by design.
+// cited answer. MiniMax creates the backdrop while exact values remain in HTML.
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 const MAX_TOPIC_LENGTH = 500;
 const MAX_BODY_BYTES = 8_192;
@@ -60,7 +62,10 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const image = await raceImageProviders(buildIllustrationPrompt(topic, chart));
+    const image = await generatePresentationImage(
+      buildPresentationImagePrompt(topic, chart),
+      { signal: request.signal },
+    );
     const bytes = Uint8Array.from(image.bytes).buffer;
     return new Response(bytes, {
       headers: {
@@ -72,7 +77,7 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("[api/image] all providers failed", error);
+    console.error("[api/image] MiniMax generation failed", error);
     return NextResponse.json(
       { error: "Paige couldn't generate an image right now." },
       { status: 502 },

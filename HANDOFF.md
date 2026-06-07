@@ -66,12 +66,13 @@ Full approved design/plan (outside the repo): `~/.gstack/projects/paige/stanleyh
   the unit (e.g. "USD millions") is matched against the whole cited document, not beside
   every cell, so values pulled from tables/headers pass. Same relaxation applied to the
   spoken-answer number check so a table-only value no longer hard-fails the request.
-- **Task #6 — Qwen vs MiniMax image race: COMPLETE WITH A SAFETY BOUNDARY.** Every grounded
-  chart races both providers through `src/lib/image-race.ts`; explicit image requests with
-  cited evidence do too. The winner is
-  returned as binary image data, shared to every participant, blurred to make provider-made
-  text unreadable, and covered with exact source-grounded HTML values. The deterministic SVG
-  is retained only if all image providers fail.
+- **Task #6 — MiniMax presentation images: COMPLETE WITH A SAFETY BOUNDARY.** Every grounded
+  chart and explicit cited-image request uses MiniMax Image-01 through
+  `src/lib/presentation-image.ts`. A live provider comparison showed MiniMax obeying the
+  no-label constraint while Qwen fabricated chart labels and values. MiniMax returns a native
+  16:9 binary image shared to every participant, blurred to make provider-made text
+  unreadable, and covered with exact source-grounded HTML values. There is no SVG image
+  fallback; one transient MiniMax failure is retried.
 - **General conversation + resilience: COMPLETE.** Obvious conversation bypasses Moss and
   goes directly to `generateConversationalAnswer`; ambiguous business questions still
   retrieve. Retrieval errors and answer-validation failures use deterministic report/chart
@@ -97,11 +98,11 @@ src/app/room/PaigeListener.tsx  Paige's brain (usePaige hook) + PaigeTile/PaigeD
 src/app/api/token/route.ts  LiveKit JWT minting (server)
 src/app/api/tts/route.ts    MiniMax TTS -> MP3 (server)
 src/app/api/ask/route.ts    Moss retrieval -> TrueFoundry answer + citations/chart
-src/app/api/image/route.ts  Qwen vs MiniMax image race -> winning image bytes (server)
+src/app/api/image/route.ts  MiniMax Image-01 -> 16:9 presentation image bytes (server)
 src/app/api/transcribe/route.ts verified LiveKit participant audio -> Deepgram Nova-3
 src/lib/paige-answer.ts     grounded answer + conversational fallback + output validation
 src/lib/paige-room.ts       shared LiveKit event protocol + interruption/visual helpers
-src/lib/image-race.ts       Qwen/MiniMax race and safe visual prompt builder
+src/lib/presentation-image.ts MiniMax-only safe visual prompt + transient retry
 src/lib/deepgram-browser.ts local LiveKit mic utterance segmentation
 src/lib/deepgram.ts         server-only Deepgram request + response validation
 src/lib/minimax-image.ts    MiniMax image-01 client (server-only)
@@ -121,25 +122,25 @@ agent/                      parked Python LiveKit-Agents worker (Deepgram path)
 
 ## Stack & sponsors
 Next.js 16 / React 19 / Tailwind v4 on Vercel. **LiveKit** (room + transport) · **Moss**
-(semantic retrieval — the foundation) · **Unsiloed** (PDF parsing) · **MiniMax** (TTS) ·
-**Qwen via DashScope** (image generation) · **TrueFoundry** (answer LLM gateway +
+(semantic retrieval — the foundation) · **Unsiloed** (PDF parsing) · **MiniMax** (TTS +
+Image-01 generation) · **TrueFoundry** (answer LLM gateway +
 fallback) · **Deepgram Nova-3** (STT).
 
 ## Env / keys
 In `.env` (gitignored). `.env.example` documents all. Deployed ones are also on Vercel
 (`vercel env add NAME production` then redeploy).
 - `LIVEKIT_URL` / `NEXT_PUBLIC_LIVEKIT_URL` / `LIVEKIT_API_KEY` / `LIVEKIT_API_SECRET` — set, on Vercel.
-- `MINIMAX_API_KEY` — set, on Vercel (Speech 2.8 HD TTS + optional image endpoint; no GroupId needed).
+- `MINIMAX_API_KEY` — set, on Vercel (Speech 2.8 HD TTS + Image-01; no GroupId needed).
 - `MOSS_PROJECT_ID` / `MOSS_PROJECT_KEY` — set locally and on Vercel. Ingest + retrieval.
 - `UNSILOED_API_KEY` — set (local). PDF parsing.
 - `DASHSCOPE_API_KEY` / `QWEN_API_KEY` — Qwen image generation is live-verified through
   Alibaba Model Studio's synchronous `z-image-turbo` endpoint. `bun run qwen:test` saves a
-  generated PNG under ignored `data/.qwen-test/`. The key was pasted into an agent chat, so
-  rotate it before the final demo deployment.
+  generated PNG under ignored `data/.qwen-test/`. It is retained for sponsor testing but is
+  not used by the presentation path because its benchmark output invented chart labels.
 - `TRUEFOUNDRY_API_KEY` / `TRUEFOUNDRY_BASE_URL` / `TRUEFOUNDRY_MODEL` — configured for
   `openai/gpt-5.4-mini`. Live verification succeeded against `/models` and
-  `/chat/completions`. Use TrueFoundry for the answer LLM; MiniMax TTS and Qwen image
-  generation remain direct provider integrations.
+  `/chat/completions`. Use TrueFoundry for the answer LLM; MiniMax TTS and image generation
+  remain direct provider integrations.
 - `DEEPGRAM_API_KEY` — set locally and on Vercel. Used server-side by
   `/api/transcribe`.
 
@@ -165,9 +166,9 @@ In `.env` (gitignored). `.env.example` documents all. Deployed ones are also on 
 5. **Paige is browser-side** now (not a LiveKit participant). `agent/` is the parked alternative.
 6. React StrictMode (dev) double-mounts; the Deepgram audio-graph cleanup must remain
    idempotent and must never stop the original LiveKit microphone track.
-7. **Generated-image text is never evidence.** Qwen and MiniMax can invent labels. Generated
-   pixels are blurred and exact cited labels/values render in HTML on top. SVG remains a
-   provider-failure fallback.
+7. **Generated-image text is never evidence.** Image models can invent labels. MiniMax
+   pixels are blurred and exact cited labels/values render in HTML on top. If MiniMax fails
+   after one retry, Paige keeps the cited answer and shows no SVG image substitute.
 8. **Google Drive should be an import source, not the live answer path.** Keep Moss as the
    query-time knowledge base. A future "Connect Drive" flow should use OAuth, let a user
    select a folder, parse supported files, and sync page-cited content into Moss.

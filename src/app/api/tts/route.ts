@@ -10,6 +10,7 @@ const MINIMAX_T2A = "https://api.minimax.io/v1/t2a_v2";
 const PAIGE_MODEL = "speech-2.8-hd";
 const PAIGE_VOICE = "English_radiant_girl";
 const PAIGE_SPEED = 1.2;
+const PAIGE_BITRATE = 64_000;
 
 export async function POST(req: NextRequest) {
   const apiKey = process.env.MINIMAX_API_KEY;
@@ -40,7 +41,12 @@ export async function POST(req: NextRequest) {
       language_boost: "English",
       output_format: "hex",
       voice_setting: { voice_id: voiceId, speed: PAIGE_SPEED, vol: 1, pitch: 0 },
-      audio_setting: { sample_rate: 32000, bitrate: 128000, format: "mp3", channel: 1 },
+      audio_setting: {
+        sample_rate: 32000,
+        bitrate: PAIGE_BITRATE,
+        format: "mp3",
+        channel: 1,
+      },
     }),
   });
 

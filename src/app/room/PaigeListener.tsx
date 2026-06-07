@@ -85,12 +85,6 @@ function isTextEntryKeyboardTarget(target: EventTarget | null): boolean {
   ].includes(element.type);
 }
 
-function spokenAnswer(answer: PaigeAnswer, visualRequested: boolean): string {
-  return visualRequested
-    ? `${answer.answer} I have the data. Give me a second to finish the visual.`
-    : answer.answer;
-}
-
 function imageModelFromName(name: string): string {
   const encoded = name.split("--")[1]?.replace(/\.(?:png|jpe?g)$/i, "") ?? "";
   return encoded.replaceAll("-", " ") || "AI";
@@ -360,7 +354,7 @@ export function usePaige(liveKitToken: string): PaigeState {
         setThinking(false);
       };
       if (playAudio) {
-        void speak(spokenAnswer(answer, visualRequested), interactionId, reveal);
+        void speak(answer.answer, interactionId, reveal);
       }
       else reveal();
     },
@@ -1157,7 +1151,7 @@ export function AnswerVisual({
     const columnCount = Math.max(1, values.length);
 
     return (
-      <figure className="relative min-h-56 overflow-hidden rounded-xl border border-white/10 bg-[#07111e]">
+      <figure className="relative aspect-video overflow-hidden rounded-xl border border-white/10 bg-[#07111e]">
         {/* The generated image supplies the visual style. Exact source values stay
             in the HTML overlay so image models cannot rewrite the evidence. */}
         {/* eslint-disable-next-line @next/next/no-img-element -- blob URLs cannot use next/image */}
@@ -1169,7 +1163,7 @@ export function AnswerVisual({
           }`}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-[#050a12] via-[#050a12]/25 to-transparent" />
-        <figcaption className="relative flex min-h-56 flex-col justify-end p-3">
+        <figcaption className="relative flex h-full flex-col justify-end p-3">
           {chart ? (
             <div className="rounded-xl border border-white/15 bg-black/65 p-3 backdrop-blur">
               <p className="text-xs font-semibold text-white">{chart.title}</p>
@@ -1259,104 +1253,15 @@ export function AnswerVisual({
         <p className="mt-1 text-[9px] text-white/40">
           {chart
             ? "The cited PDF values will stay overlaid on the generated image."
-            : "Qwen and MiniMax are generating the visual now."}
+            : "MiniMax is generating a 16:9 visual now."}
         </p>
       </figure>
     );
   }
 
-  if (!chart) {
-    return (
-      <p className="rounded-xl border border-amber-300/20 bg-amber-300/10 p-3 text-xs text-amber-100">
-        AI visual generation failed. The cited answer is still available below.
-      </p>
-    );
-  }
-
-  // Keep the deterministic SVG available only when every image provider fails.
-  return <AnswerChartFallback chart={chart} failed />;
-}
-
-function AnswerChartFallback({
-  chart,
-  large = false,
-  failed = false,
-}: {
-  chart: PaigeChart;
-  large?: boolean;
-  failed?: boolean;
-}) {
-  const width = 380;
-  const height = large ? 220 : 180;
-  const left = 38;
-  const top = 18;
-  const bottom = 42;
-  const plotHeight = height - top - bottom;
-  const maxValue = Math.max(...chart.values, 0);
-  const minValue = Math.min(...chart.values, 0);
-  const range = maxValue - minValue || 1;
-  const slotWidth = (width - left - 12) / chart.values.length;
-  const zeroY = top + (maxValue / range) * plotHeight;
-
   return (
-    <figure className="relative overflow-hidden rounded-xl border border-white/10 bg-white/[0.04] p-3">
-      <div className="relative">
-        <figcaption className="mb-2">
-          <p className="text-xs font-medium text-white/80">{chart.title}</p>
-          <p className="text-[10px] text-white/40">
-            {chart.unit} · Exact fallback from cited PDFs
-          </p>
-          {failed && (
-            <p className="mt-1 text-[9px] text-amber-200/70">
-              AI image unavailable · showing the source-grounded fallback
-            </p>
-          )}
-        </figcaption>
-        <svg
-          viewBox={`0 0 ${width} ${height}`}
-          role="img"
-          aria-label={`${chart.title}, ${chart.unit}`}
-          className="w-full"
-        >
-          <line x1={left} y1={zeroY} x2={width - 8} y2={zeroY} stroke="rgba(255,255,255,.22)" />
-          {chart.values.map((value, index) => {
-            const barHeight = (Math.abs(value) / range) * plotHeight;
-            const x = left + index * slotWidth + slotWidth * 0.18;
-            const y = value >= 0 ? zeroY - barHeight : zeroY;
-            return (
-              <g key={`${chart.labels[index]}-${index}`}>
-                <rect
-                  x={x}
-                  y={y}
-                  width={slotWidth * 0.64}
-                  height={Math.max(2, barHeight)}
-                  rx="4"
-                  fill="rgb(52 211 153)"
-                  opacity="0.85"
-                />
-                <text
-                  x={x + slotWidth * 0.32}
-                  y={value >= 0 ? Math.max(12, y - 5) : y + barHeight + 13}
-                  textAnchor="middle"
-                  fill="rgba(255,255,255,.8)"
-                  fontSize="10"
-                >
-                  {value.toLocaleString()}
-                </text>
-                <text
-                  x={x + slotWidth * 0.32}
-                  y={height - 16}
-                  textAnchor="middle"
-                  fill="rgba(255,255,255,.55)"
-                  fontSize="10"
-                >
-                  {chart.labels[index]}
-                </text>
-              </g>
-            );
-          })}
-        </svg>
-      </div>
-    </figure>
+    <p className="rounded-xl border border-amber-300/20 bg-amber-300/10 p-3 text-xs text-amber-100">
+      AI visual generation failed. The cited answer is still available below.
+    </p>
   );
 }

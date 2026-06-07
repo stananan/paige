@@ -93,7 +93,7 @@ export default function RoomClient() {
 // keep the answer, chart, source preview, and generated backdrop shared.
 function PaigeRoom({ liveKitToken }: { liveKitToken: string }) {
   const paige = usePaige(liveKitToken);
-  const [dockOpen, setDockOpen] = useState(true);
+  const [dockOpen, setDockOpen] = useState(false);
 
   return (
     <div className="relative flex h-full flex-col">
