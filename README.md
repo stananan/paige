@@ -93,25 +93,6 @@ Smoke-test Qwen image generation (writes to ignored `data/.qwen-test/`):
 
     bun run qwen:test
 
-## Build order (spine first, flourish last)
-
-- [x] **0–1 Skeleton + deploy** — Next.js app + git + live on Vercel (paige-beta.vercel.app).
-- [x] **1–3 Real 3-person room** — token route + LiveKit room (video grid + ControlBar) wired & verified. Real two-tab webcam test pending on hardware.
-- [x] **3–6 Paige's voice spine** — ✅ each participant's LiveKit mic is segmented locally, transcribed by Deepgram Nova-3 through authenticated `/api/transcribe`, and attributed by LiveKit identity; MiniMax TTS remains `/api/tts`
-- [x] **6–9 Ingest pipeline** — `bun run ingest`: /data → Unsiloed parse with cached results → page-preserving chunks → synchronized Moss index + live citation query verification
-- [x] **9–13 Fast beat (hero)** — push-to-talk → Moss retrieve → GPT-5.4 Mini (TrueFoundry) → spoken answer + cited card + deterministic chart; production verified
-- [x] **Demo workspace + corpus** — `/demo-company` lists 15 downloadable FDC PDFs, including Q1-Q4 2025, Q1-Q2 2026, and estimated Q3 2026 results; the live Moss index contains 44 page-cited documents and ten prepared prompts
-- [x] **Paige presence + general chat** — Paige remains the same size as every webcam tile and renders cited answers/charts inside her tile. The text dock can be closed and reopened. Obvious conversational prompts bypass Moss; ambiguous business prompts still retrieve.
-- [x] **13–16 Citations + chart polish** — every evidence chip opens the exact public PDF page; charts render and are value-grounded across one or more cited source PDFs
-- [x] **Shared meeting experience** — LiveKit reliable packets synchronize attributed transcripts, answers, PDF previews, and image streams; every browser plays MiniMax TTS
-- [x] **16–19 Image presentation** — MiniMax Image-01 returns a subject-specific native 16:9 image shown to everyone; unsupported data requests do not generate, valid image/draw/chart synonyms share deterministic extraction, and exact values remain source-grounded HTML overlays
-- [x] **Fast Q2 demo visual + recorded teammate** — Q2 2025-vs-Q2 2026 visual prompts use the prepared comparison image instantly; an optimized muted Nico recording fills his participant tile and is clearly labeled recorded
-- [ ] **19–21 Stretch: live upload** — one "upload a doc" → live Unsiloed parse → answerable
-- [ ] **21–23 Rehearse + harden** — run the full demo twice; prep a recorded fallback clip
-- [ ] **23–24 Submit** — lock build, write submission, demo script
-
-Full approved plan: `~/.gstack/projects/paige/stanleyho-unknown-design-20260606-154311.md`
-
 ## Project layout
 
     src/app/
