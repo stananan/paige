@@ -907,6 +907,9 @@ describe("retrieval intent", () => {
     expect(
       shouldRetrieveCompanyDocuments("Draw a comparison of our Q2 revenue."),
     ).toBe(true);
+    // A creative visual ABOUT company data still retrieves; a pure drawing does not.
+    expect(shouldRetrieveCompanyDocuments("Visualize our product roadmap.")).toBe(true);
+    expect(shouldRetrieveCompanyDocuments("Draw a sunset over the ocean.")).toBe(false);
   });
 
   test("expands relative demo periods without changing explicit years", () => {

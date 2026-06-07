@@ -202,11 +202,16 @@ function searchTerms(question: string): string[] {
 export function shouldRetrieveCompanyDocuments(question: string): boolean {
   const normalized = question.trim();
   if (!normalized) return false;
-  if (classifyVisualRequest(normalized) === "creative") return false;
 
   const companyEvidenceCue =
     /\b(?:fdc|company|our|q[1-4]|quarter\s*[1-4]|first quarter|second quarter|third quarter|fourth quarter|fy20\d{2}|20\d{2}|report|pdf|document|source|citation|evidence|data|statistic|metric|revenue|arr|margin|income|cash flow|customer|renewal|pipeline|incident|security|compliance|headcount|employee|forecast|budget|sales|support|roadmap|booking|churn|retention|nrr|graph|chart|visual|compare)\b/i;
+  // A request that references company data must retrieve even when it also asks
+  // for a creative illustration ("visualize our product roadmap"); otherwise the
+  // spoken answer and the image grounded in it would have no real content.
   if (companyEvidenceCue.test(normalized)) return true;
+
+  // A purely creative drawing request with no company reference needs no documents.
+  if (classifyVisualRequest(normalized) === "creative") return false;
 
   const conversationalCue =
     /^(?:hi|hello|hey|thanks|thank you|good morning|good afternoon|good evening)\b|\b(?:who are you|introduce yourself|how are you|what can you do|tell me a joke|weather|brainstorm|help me draft|write a|meeting agenda|standup format)\b/i;
@@ -1605,7 +1610,14 @@ export async function askPaige(
   question: string,
   dependencies: AnswerDependencies = {},
 ): Promise<PaigeAnswer> {
-  if (classifyVisualRequest(question) === "creative") {
+  // Only a purely creative drawing request (no company data to ground in) gets the
+  // canned acknowledgement. A creative visual ABOUT company data falls through to
+  // retrieval, so the spoken answer — and the image grounded in it — reflect the
+  // documents instead of this filler line.
+  if (
+    classifyVisualRequest(question) === "creative" &&
+    !shouldRetrieveCompanyDocuments(question)
+  ) {
     const model =
       (dependencies.environment ?? process.env).TRUEFOUNDRY_MODEL?.trim() || DEFAULT_MODEL;
     return {
