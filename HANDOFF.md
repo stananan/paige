@@ -39,10 +39,11 @@ Full approved design/plan (outside the repo): `~/.gstack/projects/paige/stanleyh
 
 ## The real next steps
 - **Task #3 — ingest: COMPLETE.** Live verification succeeded against Unsiloed and Moss.
-- **Task #4 — the fast beat (hero): IN PROGRESS.** `/api/ask` now performs Moss cloud
+- **Task #4 — the fast beat (hero): COMPLETE.** `/api/ask` performs Moss cloud
   retrieval (with a ranked `getDocs` fallback) → **GPT-5.4 Mini via TrueFoundry** → a
   validated concise answer, citations, and source-grounded chart data. `PaigeListener`
-  renders the result and speaks it through `/api/tts`. Production verification remains.
+  renders the result and speaks it through `/api/tts`. Production browser verification
+  succeeded on `paige-beta.vercel.app`.
 - Then: citations/chart polish (#5), Qwen-vs-MiniMax image race (#6), live upload (#7),
   rehearse (#8), submit (#9). See `README.md` for the full checklist.
 
@@ -79,7 +80,7 @@ In `.env` (gitignored). `.env.example` documents all. Deployed ones are also on 
 (`vercel env add NAME production` then redeploy).
 - `LIVEKIT_URL` / `NEXT_PUBLIC_LIVEKIT_URL` / `LIVEKIT_API_KEY` / `LIVEKIT_API_SECRET` — set, on Vercel.
 - `MINIMAX_API_KEY` — set, on Vercel (TTS + image race; no GroupId needed).
-- `MOSS_PROJECT_ID` / `MOSS_PROJECT_KEY` — set (local). Ingest + retrieval.
+- `MOSS_PROJECT_ID` / `MOSS_PROJECT_KEY` — set locally and on Vercel. Ingest + retrieval.
 - `UNSILOED_API_KEY` — set (local). PDF parsing.
 - `DASHSCOPE_API_KEY` / `QWEN_API_KEY` — Qwen image generation is live-verified through
   Alibaba Model Studio's synchronous `z-image-turbo` endpoint. `bun run qwen:test` saves a
