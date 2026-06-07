@@ -1,15 +1,25 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { getSpeechRecognition, type SpeechRecognitionLike } from "@/lib/speech";
 
-const WAKE_WORD = "paige";
+// The Web Speech API often hears "Paige" as the homophone "page"/"pages".
+// Accept those so the wake word actually fires.
+const WAKE_VARIANTS = ["paige", "pages", "page", "padge", "paij"];
 
-// Pull the command out of "...Paige, compare our revenue..." -> "compare our revenue".
 function extractCommand(transcript: string): string | null {
-  const idx = transcript.toLowerCase().indexOf(WAKE_WORD);
-  if (idx === -1) return null;
-  return transcript.slice(idx + WAKE_WORD.length).replace(/^[\s,.:!?]+/, "").trim();
+  const lower = transcript.toLowerCase();
+  let at = -1;
+  let len = 0;
+  for (const w of WAKE_VARIANTS) {
+    const i = lower.indexOf(w);
+    if (i !== -1 && (at === -1 || i < at)) {
+      at = i;
+      len = w.length;
+    }
+  }
+  if (at === -1) return null;
+  return transcript.slice(at + len).replace(/^[\s,.:!?]+/, "").trim();
 }
 
 export default function PaigeListener() {
@@ -18,6 +28,7 @@ export default function PaigeListener() {
   const [heard, setHeard] = useState("");
   const [reply, setReply] = useState("");
   const [speaking, setSpeaking] = useState(false);
+  const [input, setInput] = useState("");
 
   const recogRef = useRef<SpeechRecognitionLike | null>(null);
   const speakingRef = useRef(false);
@@ -60,6 +71,19 @@ export default function PaigeListener() {
     }
   }, []);
 
+  // Shared by voice (wake word) and the chat box.
+  const respond = useCallback(
+    async (command: string) => {
+      const q = command.trim();
+      // Task #2 spine: echo. The fast beat (task #4) replaces this with
+      // Moss retrieve -> LLM (TrueFoundry) -> cited answer.
+      const text = q ? `You asked: ${q}` : "I'm here. What would you like to know?";
+      setReply(text);
+      await speak(text);
+    },
+    [speak],
+  );
+
   const handleTranscript = useCallback(
     (transcript: string, isFinal: boolean) => {
       if (speakingRef.current) return;
@@ -67,15 +91,9 @@ export default function PaigeListener() {
       if (!isFinal) return;
       const command = extractCommand(transcript);
       if (command === null) return; // wake word not heard -> stay silent
-      // Task #2 spine: prove mic -> STT -> wake -> TTS. The fast beat (task #4)
-      // replaces this with Moss retrieve -> LLM (TrueFoundry) -> cited answer.
-      const text = command
-        ? `You asked: ${command}`
-        : "I'm here. What would you like to know?";
-      setReply(text);
-      void speak(text);
+      void respond(command);
     },
-    [speak],
+    [respond],
   );
 
   useEffect(() => {
@@ -99,7 +117,6 @@ export default function PaigeListener() {
     };
     recog.onerror = () => {};
     recog.onend = () => {
-      // Chrome ends recognition periodically; restart if we still want to listen.
       if (wantListeningRef.current && !speakingRef.current) {
         try {
           recog.start();
@@ -139,6 +156,15 @@ export default function PaigeListener() {
     }
   }, [listening]);
 
+  function submitChat(e: FormEvent) {
+    e.preventDefault();
+    const q = input.trim();
+    if (!q) return;
+    setHeard(q);
+    setInput("");
+    void respond(q);
+  }
+
   const dot = speaking ? "bg-emerald-400" : listening ? "bg-sky-400" : "bg-white/30";
 
   return (
@@ -160,21 +186,33 @@ export default function PaigeListener() {
         )}
       </div>
 
-      {!supported ? (
-        <p className="mt-3 text-xs text-white/60">
-          Voice needs Chrome (Web Speech API).
+      <div className="mt-3 space-y-2 text-sm">
+        <p className="text-xs text-white/50">
+          {supported ? "Say “Paige, …” or type below" : "Voice needs Chrome — type below"}
         </p>
-      ) : (
-        <div className="mt-3 space-y-2 text-sm">
-          <p className="text-xs text-white/50">Say &ldquo;Paige, &hellip;&rdquo;</p>
-          {heard && (
-            <p className="text-white/70">
-              <span className="text-white/40">heard:</span> {heard}
-            </p>
-          )}
-          {reply && <p className="text-emerald-300">{reply}</p>}
-        </div>
-      )}
+        {heard && (
+          <p className="text-white/70">
+            <span className="text-white/40">heard:</span> {heard}
+          </p>
+        )}
+        {reply && <p className="text-emerald-300">{reply}</p>}
+      </div>
+
+      <form onSubmit={submitChat} className="mt-3 flex gap-1.5">
+        <input
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder="Type to Paige…"
+          className="min-w-0 flex-1 rounded-lg border border-white/15 bg-white/5 px-2.5 py-1.5 text-sm outline-none placeholder:text-white/30 focus:border-white/40"
+        />
+        <button
+          type="submit"
+          className="rounded-lg border border-white/20 px-2.5 text-sm hover:bg-white/10"
+          aria-label="Send to Paige"
+        >
+          ↑
+        </button>
+      </form>
     </div>
   );
 }
