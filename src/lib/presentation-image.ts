@@ -79,16 +79,26 @@ export function buildPresentationImagePrompt(
   if (input.kind === "creative") {
     const subject =
       cleanedText(input.topic, false).replace(
-        /^(?:please\s+)?(?:draw|sketch|illustrate|render|paint|design|create|generate|make)\s+(?:an?\s+)?/i,
+        /^(?:please\s+)?(?:draw|sketch|illustrate|render|paint|design|create|generate|make|visuali[sz]e|show|picture)\s+(?:me\s+)?(?:an?\s+)?/i,
         "",
       ) || "a modern company meeting";
+    // The grounded answer (TrueFoundry over the retrieved PDFs) describes what the
+    // subject actually contains, so the illustration reflects real company content
+    // instead of an unrelated scene. Numbers are stripped: creative visuals have no
+    // HTML overlay, so the model must never try to paint figures.
+    const grounding = cleanedText(input.answer ?? "", true);
     return [
       `Create one polished horizontal 16:9 editorial illustration showing this exact subject: ${subject}.`,
+      grounding
+        ? `Ground the scene literally in this real context, depicting what it describes: ${grounding}.`
+        : "",
       "Subject relevance is mandatory. Follow the requested scene literally and make the central objects immediately recognizable.",
-      "Do not replace the subject with generic abstract waves, generic finance imagery, or an unrelated boardroom.",
+      "Do not replace the subject with generic abstract waves, generic finance imagery, an unrelated boardroom, houses, mansions, or landscapes.",
       "Premium cinematic composition, strong depth, natural detail, balanced framing, and generous safe margins.",
       "No text, words, letters, numbers, logos, watermarks, captions, or UI.",
-    ].join(" ");
+    ]
+      .filter(Boolean)
+      .join(" ");
   }
 
   const chartSubject = cleanedText(input.chart?.title ?? "", true);

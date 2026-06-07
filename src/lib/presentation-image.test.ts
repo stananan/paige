@@ -56,6 +56,24 @@ describe("buildPresentationImagePrompt", () => {
     expect(prompt).toContain("Follow the requested scene literally");
     expect(prompt).toContain("Do not replace the subject with generic abstract waves");
   });
+
+  test("grounds a creative visual in the retrieved answer, not just the bare phrase", () => {
+    const prompt = buildPresentationImagePrompt({
+      topic: "visualize our product roadmap",
+      answer:
+        "Our 2026 roadmap centers on dispatch automation, warehouse inventory, and field service tooling.",
+      kind: "creative",
+    });
+    // Topic subject survives, with the leading "visualize" stripped.
+    expect(prompt).toContain("our product roadmap");
+    expect(prompt).not.toContain("visualize");
+    // The real retrieved content reaches the image model.
+    expect(prompt).toContain("Ground the scene");
+    expect(prompt).toContain("dispatch automation");
+    expect(prompt).toContain("field service tooling");
+    // ...but numbers never do (no HTML overlay on creative visuals).
+    expect(prompt).not.toContain("2026");
+  });
 });
 
 describe("generatePresentationImage", () => {
