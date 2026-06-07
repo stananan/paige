@@ -1187,7 +1187,7 @@ export function AnswerVisual({
       visualModel === PREPARED_Q2_VISUAL_MODEL;
     if (preparedQ2Visual) {
       return (
-        <figure className="overflow-hidden rounded-xl border border-white/10 bg-white">
+        <figure className="overflow-hidden rounded-xl border border-foreground/10 bg-white shadow-sm">
           {/* eslint-disable-next-line @next/next/no-img-element -- shared blob/static visual */}
           <img
             src={visualUrl}
