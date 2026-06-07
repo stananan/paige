@@ -1,0 +1,4 @@
+# Corpus files are large and may be real filings — don't commit them.
+*
+!.gitignore
+!README.md

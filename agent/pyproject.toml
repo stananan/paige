@@ -1,0 +1,13 @@
+[project]
+name = "paige-agent"
+version = "0.1.0"
+description = "Paige — LiveKit Agents worker: Deepgram STT, MiniMax TTS, wake-word activation."
+requires-python = ">=3.11"
+dependencies = [
+    "livekit-agents",
+    "livekit-plugins-deepgram",
+    "livekit-plugins-silero",
+    "livekit-plugins-turn-detector",
+    "livekit-plugins-minimax",
+    "python-dotenv",
+]
