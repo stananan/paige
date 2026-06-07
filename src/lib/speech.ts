@@ -28,6 +28,7 @@ export interface SpeechRecognitionLike {
   start(): void;
   stop(): void;
   abort(): void;
+  onstart: (() => void) | null;
   onresult: ((e: SRResultEvent) => void) | null;
   onerror: ((e: SRErrorEvent) => void) | null;
   onend: (() => void) | null;

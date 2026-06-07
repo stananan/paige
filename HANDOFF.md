@@ -27,15 +27,17 @@ Full approved design/plan (outside the repo): `~/.gstack/projects/paige/stanleyh
   - **Chat box** in the same panel (type to Paige) — shares the `respond()` path.
   - ⚠️ **Current `respond()` is a PLACEHOLDER echo** (`"You asked: <command>"`). This proves
     the spine (task #2). It is NOT the final behavior — replace it in task #4.
+- **Ingestion pipeline is complete:** `bun run ingest` reads `/data/*.pdf`, caches Unsiloed
+  parse results by file hash, reconstructs page-specific Markdown, creates bounded Moss
+  documents carrying `{sourceFile, page}`, synchronizes the `paige-docs` index, then loads
+  it and verifies a real query returns citation metadata.
 - **`agent/`** — a Python **LiveKit-Agents** worker (the original "Paige as a real participant"
   design: Deepgram STT + MiniMax TTS). **PARKED.** We switched to browser STT because Deepgram
   signup was blocked. It's import-verified (livekit-agents 1.5.17) but never run live (needs
   `DEEPGRAM_API_KEY`). Keep as a fallback.
 
 ## The real next steps
-- **Task #3 — ingest (do first):** flesh out `scripts/ingest.ts` (`bun run ingest`): read PDFs
-  from `/data` → **Unsiloed** parse keeping page numbers → chunk with `{sourceFile, page}` →
-  index in **Moss**. Verify a raw Moss query returns chunks + source metadata (citations need it).
+- **Task #3 — ingest: COMPLETE.** Live verification succeeded against Unsiloed and Moss.
 - **Task #4 — the fast beat (hero):** replace the echo in `PaigeListener.respond()` (move the
   brain server-side, e.g. a `/api/ask` route): command → Moss retrieve → **LLM via TrueFoundry**
   → one-line spoken answer (`/api/tts`) + a cited source card + a chart.
@@ -53,7 +55,9 @@ src/app/api/tts/route.ts    MiniMax TTS -> MP3 (server)
 src/lib/room.ts             hardcoded room name "paige-room"
 src/lib/speech.ts           Web Speech API types + factory
 src/lib/env.ts              typed env accessors
-scripts/ingest.ts           offline ingest STUB (task #3)
+scripts/ingest.ts           offline Unsiloed → page chunks → Moss sync + query verification
+scripts/ingest-lib.ts       pure page/chunk/citation transforms
+scripts/ingest.test.ts      focused ingestion unit tests
 data/                       corpus PDFs (gitignored), pre-ingested before demo
 agent/                      parked Python LiveKit-Agents worker (Deepgram path)
 ```
@@ -71,10 +75,11 @@ In `.env` (gitignored). `.env.example` documents all. Deployed ones are also on 
 - `MINIMAX_API_KEY` — set, on Vercel (TTS + image race; no GroupId needed).
 - `MOSS_PROJECT_ID` / `MOSS_PROJECT_KEY` — set (local). Ingest + retrieval.
 - `UNSILOED_API_KEY` — set (local). PDF parsing.
-- `QWEN_API_KEY` — set (local). Image race.
-- `TRUEFOUNDRY_API_KEY` — set (local). LLM gateway. **`TRUEFOUNDRY_BASE_URL` still MISSING** —
-  need the gateway endpoint (~`https://<tenant>.truefoundry.cloud/api/llm`) + a model id from
-  the TrueFoundry dashboard before the fast beat.
+- `QWEN_API_KEY` — present locally, but the WaveSpeed API currently returns `401 Unauthorized`;
+  replace or reactivate it before the image race.
+- `TRUEFOUNDRY_API_KEY` / `TRUEFOUNDRY_BASE_URL` — valid locally, but `GET /models` currently
+  returns zero models. Add a provider/model in the TrueFoundry dashboard and set
+  `TRUEFOUNDRY_MODEL` before the fast beat.
 - `DEEPGRAM_API_KEY` — empty (only if reviving `agent/`).
 
 ## How to run

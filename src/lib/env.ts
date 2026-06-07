@@ -24,11 +24,13 @@ export const env = {
   moss: {
     projectId: optional("MOSS_PROJECT_ID"),
     projectKey: optional("MOSS_PROJECT_KEY"),
+    index: optional("MOSS_INDEX"),
   },
   unsiloed: { apiKey: optional("UNSILOED_API_KEY") },
   truefoundry: {
     apiKey: optional("TRUEFOUNDRY_API_KEY"),
     baseUrl: optional("TRUEFOUNDRY_BASE_URL"),
+    model: optional("TRUEFOUNDRY_MODEL"),
   },
   minimax: { apiKey: optional("MINIMAX_API_KEY") },
   qwen: { apiKey: optional("QWEN_API_KEY") },

@@ -99,11 +99,12 @@ export default function PaigeListener() {
   useEffect(() => {
     const recog = getSpeechRecognition();
     if (!recog) {
-      setSupported(false);
-      return;
+      const timeout = window.setTimeout(() => setSupported(false), 0);
+      return () => window.clearTimeout(timeout);
     }
     recogRef.current = recog;
 
+    recog.onstart = () => setListening(true);
     recog.onresult = (e) => {
       let interim = "";
       let final = "";
@@ -127,7 +128,6 @@ export default function PaigeListener() {
     wantListeningRef.current = true;
     try {
       recog.start();
-      setListening(true);
     } catch {}
 
     return () => {
