@@ -522,6 +522,7 @@ function buildPrompt(
     "Include a chart only when the sources contain a useful numeric comparison.",
     "For charts, copy labels, values, and units exactly from the sources; keep each label paired with its nearby value.",
     "Never calculate, convert, or invent chart values or units.",
+    "Only chart values that share one unit; never mix currency amounts and percentages in the same chart.",
     "",
     ...(history.length > 0
       ? [
@@ -668,6 +669,68 @@ function chartUnit(header: string, values: string[], document: RetrievedDocument
     return "USD millions";
   }
   return header;
+}
+
+type UnitFamily = "currency" | "percent" | "other";
+
+// Family is derived from the label alone. The chart's unit string is NOT used
+// here: a mixed unit like "USD millions; Gross Margin %" would otherwise tag
+// every label as percent and defeat the whole check.
+function unitFamilyForLabel(label: string): UnitFamily {
+  if (/%|\b(?:margin|nrr|retention|churn|rate|percent)\b/i.test(label)) return "percent";
+  if (
+    /[$€£]|\b(?:usd|revenue|arr|bookings?|income|cash|sales|pipeline|cost|expenses?|ebitda|profit|spend|budget)\b/i.test(
+      label,
+    )
+  ) {
+    return "currency";
+  }
+  return "other";
+}
+
+function canonicalUnitForFamily(family: UnitFamily, unitHint: string): string {
+  if (family === "percent") return "%";
+  if (family === "currency") {
+    return /\bmillions?\b/i.test(unitHint)
+      ? "USD millions"
+      : unitHint.match(/[^;/]+/)?.[0]?.trim() || "USD";
+  }
+  return unitHint.match(/[^;/]+/)?.[0]?.trim() || unitHint;
+}
+
+/**
+ * Keep a chart's bars comparable. Bar height is only meaningful when every value
+ * shares a unit, so if the labels mix currency and percentage (e.g. Revenue,
+ * ARR, and Operating Income in USD millions next to a Gross Margin %), drop to
+ * the dominant family — a 74% bar must not tower over a $1.3M bar. Also collapse
+ * a concatenated unit string ("USD millions; Gross Margin %") to one clean unit.
+ * Returns null when fewer than two same-family rows survive, so the answer just
+ * speaks instead of rendering a misleading chart.
+ */
+export function coerceComparableChart(chart: PaigeChart | null): PaigeChart | null {
+  if (!chart) return null;
+  const families = chart.labels.map((label) => unitFamilyForLabel(label));
+  if (new Set(families).size <= 1) {
+    if (/[;/]| and /i.test(chart.unit)) {
+      return { ...chart, unit: canonicalUnitForFamily(families[0] ?? "other", chart.unit) };
+    }
+    return chart;
+  }
+  const counts = new Map<UnitFamily, number>();
+  for (const family of families) counts.set(family, (counts.get(family) ?? 0) + 1);
+  const dominant = [...counts.entries()].sort(
+    (left, right) => right[1] - left[1] || (left[0] === "currency" ? -1 : 1),
+  )[0][0];
+  const kept = families
+    .map((family, index) => ({ family, index }))
+    .filter((row) => row.family === dominant);
+  if (kept.length < 2) return null;
+  return {
+    title: chart.title,
+    labels: kept.map((row) => chart.labels[row.index]),
+    values: kept.map((row) => chart.values[row.index]),
+    unit: canonicalUnitForFamily(dominant, chart.unit),
+  };
 }
 
 /**
@@ -842,12 +905,12 @@ function parseChart(value: unknown): PaigeChart | null {
     throw new Error("Model returned an invalid chart");
   }
 
-  return {
+  return coerceComparableChart({
     title: title.trim().slice(0, 100),
     labels: labels.map((label) => label.trim().slice(0, 32)),
     values,
     unit: unit.trim().slice(0, 40),
-  };
+  });
 }
 
 function citationFor(document: RetrievedDocument): PaigeCitation {

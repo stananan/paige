@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   askPaige,
+  coerceComparableChart,
   extractGroundedTableChart,
   generateAnswerFromDocuments,
   generateConversationalAnswer,
@@ -1063,5 +1064,59 @@ describe("askPaige conversational fallback", () => {
 
     expect(answer.answer).toContain("$210 million");
     expect(answer.citations).toEqual([{ sourceFile: "annual-report.pdf", page: "8" }]);
+  });
+});
+
+describe("coerceComparableChart", () => {
+  test("drops percentage rows so a currency chart stays comparable", () => {
+    expect(
+      coerceComparableChart({
+        title: "Q3 2025 actual",
+        labels: ["Revenue", "Exit ARR", "Gross Margin", "Operating Income"],
+        values: [17.2, 72.9, 74, 1.3],
+        unit: "USD millions; Gross Margin %",
+      }),
+    ).toEqual({
+      title: "Q3 2025 actual",
+      labels: ["Revenue", "Exit ARR", "Operating Income"],
+      values: [17.2, 72.9, 1.3],
+      unit: "USD millions",
+    });
+  });
+
+  test("de-concatenates the unit even when the family is uniform", () => {
+    const result = coerceComparableChart({
+      title: "Margins",
+      labels: ["Gross Margin", "Net Margin"],
+      values: [74, 12],
+      unit: "Gross Margin %; net %",
+    });
+    expect(result?.unit).toBe("%");
+    expect(result?.labels).toEqual(["Gross Margin", "Net Margin"]);
+  });
+
+  test("leaves a clean single-unit chart untouched", () => {
+    const chart = {
+      title: "Revenue — Q3 history",
+      labels: ["Q3 2023", "Q3 2024", "Q3 2025"],
+      values: [12, 15, 17.2],
+      unit: "USD millions",
+    };
+    expect(coerceComparableChart(chart)).toEqual(chart);
+  });
+
+  test("suppresses the chart when fewer than two same-unit rows remain", () => {
+    expect(
+      coerceComparableChart({
+        title: "Snapshot",
+        labels: ["Revenue", "Gross Margin"],
+        values: [17.2, 74],
+        unit: "USD millions; %",
+      }),
+    ).toBeNull();
+  });
+
+  test("returns null for a null chart", () => {
+    expect(coerceComparableChart(null)).toBeNull();
   });
 });

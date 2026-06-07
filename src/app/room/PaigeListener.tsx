@@ -1198,7 +1198,25 @@ export function AnswerVisual({
       );
     }
 
-    const values = chart?.values ?? [];
+    if (!chart) {
+      // No chart means a creative / topic illustration — the generated image IS
+      // the visual, so show it crisp and whole instead of as a blurred backdrop.
+      return (
+        <figure className="relative overflow-hidden rounded-xl border border-foreground/10 bg-white shadow-sm">
+          {/* eslint-disable-next-line @next/next/no-img-element -- blob URLs cannot use next/image */}
+          <img
+            src={visualUrl}
+            alt=""
+            className="block max-h-72 w-full object-contain"
+          />
+          <figcaption className="absolute bottom-2 left-2 rounded-md border border-foreground/15 bg-white/80 px-2.5 py-1 text-[9px] font-medium text-foreground/70 backdrop-blur">
+            Generated visual by {visualModel || "AI"}
+          </figcaption>
+        </figure>
+      );
+    }
+
+    const values = chart.values;
     const maxValue = Math.max(...values, 0);
     const minValue = Math.min(...values, 0);
     const range = maxValue - minValue || 1;
@@ -1213,14 +1231,11 @@ export function AnswerVisual({
         <img
           src={visualUrl}
           alt=""
-          className={`absolute inset-0 h-full w-full scale-105 object-cover brightness-90 saturate-110 ${
-            chart ? "blur-[6px]" : "blur-[2px]"
-          }`}
+          className="absolute inset-0 h-full w-full scale-105 object-cover saturate-110"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-white via-white/40 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-white via-white/55 to-transparent" />
         <figcaption className="relative flex h-full flex-col justify-end p-3">
-          {chart ? (
-            <div className="rounded-xl border border-foreground/15 bg-white/85 p-3 backdrop-blur">
+          <div className="rounded-xl border border-foreground/15 bg-white/90 p-3 shadow-sm backdrop-blur">
               <p className="text-xs font-semibold text-foreground">{chart.title}</p>
               <p className="mt-0.5 text-[9px] text-foreground/55">
                 {chart.unit} · Exact values from cited PDFs
@@ -1288,11 +1303,6 @@ export function AnswerVisual({
                 Visual by {visualModel || "AI"} · values overlaid from sources
               </p>
             </div>
-          ) : (
-            <div className="self-start rounded-lg border border-foreground/15 bg-white/80 px-2.5 py-1.5 text-[9px] text-foreground/70 backdrop-blur">
-              Generated visual by {visualModel || "AI"}
-            </div>
-          )}
         </figcaption>
       </figure>
     );
