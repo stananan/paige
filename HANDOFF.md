@@ -82,9 +82,10 @@ In `.env` (gitignored). `.env.example` documents all. Deployed ones are also on 
   Alibaba Model Studio's synchronous `z-image-turbo` endpoint. `bun run qwen:test` saves a
   generated PNG under ignored `data/.qwen-test/`. The key was pasted into an agent chat, so
   rotate it before the final demo deployment.
-- `TRUEFOUNDRY_API_KEY` / `TRUEFOUNDRY_BASE_URL` — valid locally, but `GET /models` currently
-  returns zero models. Add a provider/model in the TrueFoundry dashboard and set
-  `TRUEFOUNDRY_MODEL` before the fast beat.
+- `TRUEFOUNDRY_API_KEY` / `TRUEFOUNDRY_BASE_URL` / `TRUEFOUNDRY_MODEL` — configured for
+  `openai/gpt-4.1-mini`. Live verification succeeded against `/models` and
+  `/chat/completions` (`PAIGE_OK`). Use TrueFoundry for the answer LLM; MiniMax TTS and Qwen
+  image generation remain direct provider integrations.
 - `DEEPGRAM_API_KEY` — empty (only if reviving `agent/`).
 
 ## How to run
