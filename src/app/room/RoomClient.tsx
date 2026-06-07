@@ -89,8 +89,8 @@ export default function RoomClient() {
   );
 }
 
-// Hosts the single Paige brain so the equal-sized grid tile and control dock share
-// one state.
+// Each browser hosts a synchronized Paige client. LiveKit data and byte streams
+// keep the answer, chart, source preview, session, and generated backdrop shared.
 function PaigeRoom() {
   const paige = usePaige();
   const [dockOpen, setDockOpen] = useState(true);

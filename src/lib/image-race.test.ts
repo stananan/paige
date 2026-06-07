@@ -72,6 +72,16 @@ describe("buildIllustrationPrompt", () => {
   test("uses a default subject when empty", () => {
     expect(buildIllustrationPrompt("   ")).toContain("modern company meeting");
   });
+
+  test("removes source numbers and periods from decorative prompts", () => {
+    const prompt = buildIllustrationPrompt(
+      "Compare Q2 2025 revenue of $16.8 million with Q2 2026 at $21.6 million",
+    );
+    expect(prompt).not.toContain("Q2");
+    expect(prompt).not.toContain("2025");
+    expect(prompt).not.toContain("16.8");
+    expect(prompt).toContain("No text");
+  });
 });
 
 describe("configuredImageProviders", () => {
@@ -90,6 +100,7 @@ describe("raceImageProviders", () => {
       fetchImpl: makeFetch({ qwenOk: true, minimaxOk: false }),
     });
     expect(image.model).toBe("Qwen");
+    expect(image.contentType).toBe("image/png");
     expect(image.dataUrl.startsWith("data:image/png;base64,")).toBe(true);
   });
 
@@ -99,6 +110,7 @@ describe("raceImageProviders", () => {
       fetchImpl: makeFetch({ qwenOk: false, minimaxOk: true }),
     });
     expect(image.model).toBe("MiniMax");
+    expect(image.contentType).toBe("image/jpeg");
     expect(image.dataUrl.startsWith("data:image/jpeg;base64,")).toBe(true);
   });
 

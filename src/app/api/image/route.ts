@@ -35,7 +35,12 @@ export async function POST(request: NextRequest) {
   try {
     const image = await raceImageProviders(buildIllustrationPrompt(topic));
     return NextResponse.json(
-      { dataUrl: image.dataUrl, model: image.model, requestId: image.requestId },
+      {
+        dataUrl: image.dataUrl,
+        contentType: image.contentType,
+        model: image.model,
+        requestId: image.requestId,
+      },
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (error) {

@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { askPaige } from "@/lib/paige-answer";
+import {
+  askPaige,
+  type PaigeConversationTurn,
+} from "@/lib/paige-answer";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
 const MAX_QUESTION_LENGTH = 500;
-const MAX_BODY_BYTES = 4_096;
+const MAX_BODY_BYTES = 16_384;
+const MAX_HISTORY_TURNS = 6;
 const WINDOW_MS = 60_000;
 const MAX_REQUESTS_PER_WINDOW = 20;
 const MAX_TRACKED_CLIENTS = 1_000;
@@ -47,11 +51,41 @@ export async function POST(request: NextRequest) {
   }
 
   let question: string;
+  let history: PaigeConversationTurn[] = [];
   try {
-    const body = (await request.json()) as { question?: unknown };
+    const body = (await request.json()) as {
+      question?: unknown;
+      history?: unknown;
+    };
     question = typeof body.question === "string" ? body.question.trim() : "";
+    if (body.history !== undefined) {
+      if (
+        !Array.isArray(body.history) ||
+        body.history.length > MAX_HISTORY_TURNS ||
+        !body.history.every(
+          (turn) =>
+            typeof turn === "object" &&
+            turn !== null &&
+            "question" in turn &&
+            typeof turn.question === "string" &&
+            turn.question.length <= MAX_QUESTION_LENGTH &&
+            "answer" in turn &&
+            typeof turn.answer === "string" &&
+            turn.answer.length <= 600,
+        )
+      ) {
+        return NextResponse.json({ error: "Invalid conversation history" }, { status: 400 });
+      }
+      history = body.history.map((turn) => ({
+        question: String(turn.question).trim(),
+        answer: String(turn.answer).trim(),
+      }));
+    }
   } catch {
-    return NextResponse.json({ error: "Body must be JSON: { question }" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Body must be JSON: { question, history? }" },
+      { status: 400 },
+    );
   }
 
   if (!question) {
@@ -65,7 +99,10 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const answer = await askPaige(question, { signal: request.signal });
+    const answer = await askPaige(question, {
+      signal: request.signal,
+      history,
+    });
     return NextResponse.json(answer, {
       headers: { "Cache-Control": "no-store" },
     });

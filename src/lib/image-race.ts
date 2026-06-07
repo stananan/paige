@@ -13,6 +13,7 @@ export type ImageProvider = "Qwen" | "MiniMax";
 export interface RacedImage {
   /** A self-contained data: URL so the browser needs no second request. */
   dataUrl: string;
+  contentType: string;
   model: ImageProvider;
   requestId: string;
 }
@@ -30,11 +31,16 @@ const MAX_TOPIC_CHARACTERS = 240;
  * explicitly free of text, numbers, and charts (which models render unreliably).
  */
 export function buildIllustrationPrompt(topic: string): string {
-  const cleaned = topic.replace(/\s+/g, " ").trim().slice(0, MAX_TOPIC_CHARACTERS);
+  const cleaned = topic
+    .replace(/\bQ[1-4]\b/gi, "quarter")
+    .replace(/[$€£]?\d[\d,.]*(?:%|[KMB])?/gi, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, MAX_TOPIC_CHARACTERS);
   const subject = cleaned || "a modern company meeting";
   return [
     `A clean, modern editorial illustration that evokes: ${subject}.`,
-    "Calm professional palette, soft depth, abstract and conceptual.",
+    "Calm professional palette, soft depth, abstract and conceptual, suitable as a subtle chart backdrop.",
     "No text, no words, no letters, no numbers, no charts, no graphs, no logos.",
   ].join(" ");
 }
@@ -74,6 +80,7 @@ export async function raceImageProviders(
         { environment, fetchImpl, signal: controller.signal },
       ).then((result) => ({
         dataUrl: toDataUrl(result.bytes, result.contentType),
+        contentType: result.contentType,
         model: "Qwen" as const,
         requestId: result.requestId,
       })),
@@ -86,6 +93,7 @@ export async function raceImageProviders(
         { environment, fetchImpl, signal: controller.signal },
       ).then((result) => ({
         dataUrl: toDataUrl(result.bytes, result.contentType),
+        contentType: result.contentType,
         model: "MiniMax" as const,
         requestId: result.requestId,
       })),

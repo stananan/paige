@@ -1,19 +1,20 @@
 # Paige
 
-**Live AI meeting copilot.** Paige joins a meeting as a third participant, listens the
-whole time, and acts when addressed: _"Paige, compare our revenue the last 10 years"_ →
+**Live AI meeting copilot.** Paige joins a meeting as a third participant. Say her name
+once to start a flowing session: _"Paige, compare our revenue the last 10 years"_ →
 she retrieves from a semantic index, **speaks** a one-line cited answer, and renders a
-source-grounded chart — all live.
+source-grounded chart for everyone — all live.
 
 Built for the **YC Conversational AI Hackathon** (Jun 6–7 2026), Co-Pilot track.
 
 ## How it works
 
-1. **Addressed activation** — always listening for context, but only _acts_ on "Paige, …". No talking over you.
-2. **Grounded response** — spoken takeaway + cited card + deterministic chart inside
-   Paige's equal-sized participant tile.
-3. **No generated-data images** — Qwen/MiniMax image experiments remain available at
-   `/api/image`, but factual answers never display them because image models distort labels and values.
+1. **Flowing session** — say "Paige" once, ask natural follow-ups, and say "thanks Paige"
+   to return to the meeting. Human speech interrupts her immediately.
+2. **Shared grounded response** — every participant sees and hears the same spoken takeaway,
+   cited card, deterministic chart, and PDF page preview inside Paige's equal-sized tile.
+3. **Safe generated visuals** — Qwen/MiniMax can add a shared decorative backdrop, but
+   prompts contain no source numbers or labels; the cited SVG remains the factual chart.
 4. **Citations on every answer** — clickable source PDF + page, from Moss metadata. Chart
    labels and values are copied from retrieved PDF tables and validated before rendering.
 
@@ -21,8 +22,8 @@ Built for the **YC Conversational AI Hackathon** (Jun 6–7 2026), Co-Pilot trac
 
 Next.js 16 (App Router, TypeScript) on Vercel · **LiveKit** (room + voice) · **Moss**
 (semantic retrieval) · **Unsiloed** (PDF parsing) · **MiniMax Speech 2.8 HD** (TTS) ·
-**TrueFoundry** (answer LLM gateway). Qwen and MiniMax image integrations are retained as
-non-factual experiments, not part of the live answer path.
+**TrueFoundry** (answer LLM gateway). Qwen and MiniMax image generation supplies only the
+non-factual backdrop behind exact source-grounded charts.
 
 ## Setup
 
@@ -53,7 +54,8 @@ Smoke-test Qwen image generation (writes to ignored `data/.qwen-test/`):
 - [x] **Demo workspace + corpus** — `/demo-company` lists 15 downloadable FDC PDFs, including Q1-Q4 2025, Q1-Q2 2026, and estimated Q3 2026 results; the live Moss index contains 44 page-cited documents and ten prepared prompts
 - [x] **Paige presence + general chat** — Paige remains the same size as every webcam tile and renders cited answers/charts inside her tile. The text dock can be closed and reopened. Obvious conversational prompts bypass Moss; ambiguous business prompts still retrieve.
 - [x] **13–16 Citations + chart polish** — every evidence chip opens the exact public PDF page; charts render and are value-grounded across one or more cited source PDFs
-- [x] **16–19 Image safety correction** — Qwen vs MiniMax race remains implemented at `/api/image`, but generated images are disabled in factual answers; deterministic cited charts are the only data visualization
+- [x] **Shared meeting experience** — LiveKit reliable packets synchronize Paige sessions, answers, charts, PDF previews, and image streams; every browser plays MiniMax TTS and active speakers interrupt it
+- [x] **16–19 Image safety correction** — Qwen vs MiniMax provides a decorative backdrop with source numbers stripped; deterministic cited SVG charts remain the only factual data visualization
 - [ ] **19–21 Stretch: live upload** — one "upload a doc" → live Unsiloed parse → answerable
 - [ ] **21–23 Rehearse + harden** — run the full demo twice; prep a recorded fallback clip
 - [ ] **23–24 Submit** — lock build, write submission, demo script

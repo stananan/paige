@@ -676,7 +676,7 @@ describe("generateAnswerFromDocuments", () => {
       },
     );
 
-    expect(answer.answer).toContain("revenue $21.6 million");
+    expect(answer.answer).toContain("$21.6 million in revenue");
     expect(answer.answer).toContain("preliminary forecast");
     expect(answer.citations).toEqual([
       {
@@ -706,7 +706,7 @@ describe("generateAnswerFromDocuments", () => {
 
     expect(modelCalled).toBe(false);
     expect(answer.answer).toBe(
-      "Q2 2025 actual revenue was $16.8 million.",
+      "FDC reported $16.8 million in revenue for Q2 2025.",
     );
     expect(answer.citations[0]?.sourceFile).toBe(
       "fdc/FDC Q2 2025 Quarterly Report.pdf",

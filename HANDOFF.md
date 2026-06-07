@@ -5,11 +5,13 @@ Context for any agent (Codex/Claude) continuing this project. Pairs with `README
 
 ## What Paige is
 A **live AI meeting copilot** built for the YC Conversational AI Hackathon (Jun 6–7 2026).
-A 3-person LiveKit room (you + a friend + Paige). Paige listens the whole time and only
-*acts* when addressed by name ("Paige, …"). On command she retrieves from a **Moss**
+A 3-person LiveKit room (you + a friend + Paige). Say "Paige" once to open a shared
+copilot session, continue with natural follow-ups, then say "thanks Paige" or "that's it"
+to close the session. On command she retrieves from a **Moss**
 semantic index over pre-ingested company financial documents, **speaks** a one-line cited
-answer, and shows a deterministic chart built from retrieved PDF values. The answer LLM runs
-through TrueFoundry. Demo-first; protect the "cited answer arriving live" hero beat.
+answer, and presents the same cited answer, exact chart, PDF preview, and optional generated
+backdrop to everyone. The answer LLM runs through TrueFoundry. Demo-first; protect the
+"cited answer arriving live" hero beat.
 
 Full approved design/plan (outside the repo): `~/.gstack/projects/paige/stanleyho-unknown-design-20260606-154311.md`
 
@@ -27,9 +29,12 @@ Full approved design/plan (outside the repo): `~/.gstack/projects/paige/stanleyh
     homophones page/pages/padge/paij); extracts the command after the wake word.
   - **Voice (TTS):** **MiniMax `speech-2.8-hd`, voice `English_radiant_girl`, speed `1.2`**
     via `/api/tts`. Plays MP3 in-browser. This configuration was live-verified.
-  - **Chat box** in the same panel (type to Paige) — shares the `respond()` path.
-  - `respond()` calls `/api/ask`, renders the cited answer/chart, and sends the answer to
-    MiniMax TTS.
+  - **Shared session:** one wake word opens a flowing conversation; follow-ups include the
+    last six turns, and natural end phrases close it for the whole room.
+  - **Chat box** in the same panel (type to Paige) — any participant can ask or end a session.
+  - LiveKit reliable data packets synchronize question/answer/session state. Each browser
+    plays the same MiniMax answer, so every participant hears Paige. Active-speaker events
+    stop playback immediately when a person interrupts.
 - **Ingestion pipeline is complete:** `bun run ingest` recursively reads one selected
   `/data/<company>/**/*.pdf` corpus, caches Unsiloed
   parse results by file hash, reconstructs page-specific Markdown, creates bounded Moss
@@ -57,16 +62,19 @@ Full approved design/plan (outside the repo): `~/.gstack/projects/paige/stanleyh
   the unit (e.g. "USD millions") is matched against the whole cited document, not beside
   every cell, so values pulled from tables/headers pass. Same relaxation applied to the
   spoken-answer number check so a table-only value no longer hard-fails the request.
-- **Task #6 — Qwen vs MiniMax image race: PARKED FOR FACTUAL ANSWERS.** `/api/image` still
-  runs both providers through `src/lib/image-race.ts`, but the room no longer calls it for
-  company-data questions. Image models changed labels and values, so only deterministic,
-  source-grounded SVG charts appear in the live answer path.
+- **Task #6 — Qwen vs MiniMax image race: COMPLETE WITH A SAFETY BOUNDARY.** Explicit
+  chart/visual prompts race both providers through `src/lib/image-race.ts`. Numbers, periods,
+  text, and chart instructions are stripped from the image prompt; the winner is shared to
+  every participant as a low-opacity decorative backdrop. The deterministic, source-grounded
+  SVG remains the only factual visualization.
 - **General conversation + resilience: COMPLETE.** Obvious conversation bypasses Moss and
   goes directly to `generateConversationalAnswer`; ambiguous business questions still
   retrieve. Retrieval errors and answer-validation failures use deterministic report/chart
   extraction when possible, then degrade to conversation instead of a 502.
 - **Paige presence: COMPLETE.** Paige stays the same size as every webcam tile. Cited
-  answers and charts render inside her tile; the text dock can be closed and reopened.
+  answers, charts, and an embedded cited-PDF page preview render inside her tile; the text
+  dock can be closed and reopened. This synchronized presentation surface is the
+  browser-safe replacement for silently starting a real screen share.
 - **Demo company PDF library: COMPLETE.** `/demo-company` lists the actual generated PDFs
   (`DriveExplorer`); each opens in the browser and is labeled Unsiloed-parsed/Moss-indexed.
   Citations inside Paige's participant tile open the exact PDF page in a new tab.
@@ -86,6 +94,7 @@ src/app/api/tts/route.ts    MiniMax TTS -> MP3 (server)
 src/app/api/ask/route.ts    Moss retrieval -> TrueFoundry answer + citations/chart
 src/app/api/image/route.ts  Qwen vs MiniMax image race -> winning data URL (server)
 src/lib/paige-answer.ts     grounded answer + conversational fallback + output validation
+src/lib/paige-room.ts       shared LiveKit event protocol + session transcript parsing
 src/lib/image-race.ts       Qwen/MiniMax race, prompt builder, data-URL packaging
 src/lib/minimax-image.ts    MiniMax image-01 client (server-only)
 src/data/fdc.ts             shared FDC dashboard and corpus facts
@@ -146,9 +155,9 @@ In `.env` (gitignored). `.env.example` documents all. Deployed ones are also on 
    to an http(s) page to disconnect (the browse tool blocks `about:blank`).
 5. **Paige is browser-side** now (not a LiveKit participant). `agent/` is the parked alternative.
 6. React StrictMode (dev) double-mounts; `recognition.start()` is guarded with try/catch.
-7. **Generated graphs are not factual charts.** Qwen and MiniMax changed or omitted labels
-   and values. The room does not call `/api/image` for factual answers. Render cited charts
-   deterministically in React/SVG from retrieved PDF table values.
+7. **Generated images are never factual charts.** Qwen and MiniMax can change or omit
+   labels and values. The room may generate a decorative backdrop with all numbers/text
+   stripped from the prompt, but cited values always render deterministically in React/SVG.
 8. **Google Drive should be an import source, not the live answer path.** Keep Moss as the
    query-time knowledge base. A future "Connect Drive" flow should use OAuth, let a user
    select a folder, parse supported files, and sync page-cited content into Moss.
@@ -161,7 +170,9 @@ In `.env` (gitignored). `.env.example` documents all. Deployed ones are also on 
    somewhere in the cited docs while still requiring the exact value next to its label.
    Wrong scale (millions→billions) still fails because the scale word isn't present.
 11. **Paige is not a real LiveKit participant.** Her equal-sized `PaigeTile` is client-side
-   composition in the custom grid, not a published track. The real-participant path is still
+   composition in the custom grid, not a published track. LiveKit synchronizes her
+   presentation and interruption state across browsers. A browser cannot silently start a
+   real screen share without a user permission gesture. The real-participant path is still
    parked in `agent/`.
 
 ## Demo target
