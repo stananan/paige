@@ -1,11 +1,12 @@
-# Paige
+# Paige — Live AI Meeting Copilot
 
-**Live AI meeting copilot.** Paige joins a meeting as a third participant. Hold Space,
-ask a question, then release to send: _"Compare our revenue the last 10 years"_ →
-she retrieves from a semantic index, **speaks** a one-line cited answer, and renders a
-source-grounded chart for everyone — all live.
+**Live AI meeting copilot.** Paige sits in a LiveKit meeting as a third participant, listens
+the whole time, and acts when addressed. Hold **Space**, ask _"Compare our revenue the last
+10 years"_, release to send → she retrieves from a semantic index, **speaks** a one-line cited
+answer, and renders a source-grounded chart and a generated visual for everyone — all live.
 
 Built for the **YC Conversational AI Hackathon** (Jun 6–7 2026), Co-Pilot track.
+**This is the final build** — live at **https://paige-beta.vercel.app**.
 
 ## How it works
 
@@ -20,6 +21,50 @@ Built for the **YC Conversational AI Hackathon** (Jun 6–7 2026), Co-Pilot trac
    never evidence.
 4. **Citations on every answer** — clickable source PDF + page, from Moss metadata. Chart
    labels and values are copied from retrieved PDF tables and validated before rendering.
+
+## How we used each sponsor tool
+
+Paige's hero beat — a _spoken, cited answer plus a grounded visual arriving live in the
+room_ — is a relay across six sponsor tools. The exact role each one plays:
+
+### 🔎 Moss — semantic retrieval (the foundation)
+Moss is the knowledge base every answer is grounded in. During ingestion we sync **page-cited
+documents** — one per PDF page, each carrying `{ sourceFile, page }` metadata — into the
+`paige` index. At query time `/api/ask` runs hybrid retrieval (Moss's HTTP query API plus a
+ranked `getDocs` pass) to pull the exact passages that answer the question. Every citation
+Paige speaks and every chart value traces back to what Moss returned: no Moss hit, no claim.
+
+### 🎥 LiveKit — the live room + shared state
+LiveKit runs the real-time meeting: video, audio, and transport for you, a teammate, and
+Paige. `/api/token` mints short-lived access tokens. Beyond media, LiveKit is Paige's nervous
+system — we use **reliable data packets** and **byte streams** to broadcast attributed
+transcripts, thinking/answer events, the cited PDF preview, and the generated image, so every
+participant sees and hears the *same* response inside Paige's equal-sized tile.
+
+### 📄 Unsiloed — PDF parsing → citable chunks
+Unsiloed turns source PDFs into structured, page-aware text during offline ingestion
+(`bun run ingest`). Parse results are cached by file hash; each page becomes clean Markdown
+that we slice into bounded, page-numbered chunks. That page fidelity is what lets Paige cite
+"FDC FY2025 Annual Report · p.12" and deep-link to the exact PDF page in the room.
+
+### 🧠 TrueFoundry — the answer-LLM gateway
+The answer model (GPT-5.4 Mini) runs through TrueFoundry's gateway. Retrieved Moss context and
+the question go through TrueFoundry, which returns the concise one-line cited reply — and
+structured chart data when the question is comparative. The gateway keeps the model swappable
+and gives one place for auth, routing, and fallback.
+
+### 🗣️ MiniMax — Paige's voice + presentation visuals
+MiniMax does double duty. **Speech 2.8 HD** (`/api/tts`, voice `English_radiant_girl`) gives
+Paige her spoken voice; the MP3 streams back and plays in every browser. **Image-01**
+(`/api/image`) generates the native 16:9 presentation visual that lands a beat after the
+answer — the exact source numbers are overlaid in HTML on top, so generated pixels are styling,
+never evidence.
+
+### 🖼️ Qwen — image generation (validated alternate backend)
+Qwen image generation, via Alibaba DashScope's synchronous `z-image-turbo` endpoint, is the
+validated alternate visual backend (`bun run qwen:test`, `src/lib/qwen-image.ts`). It
+established the "generated visual + source-grounded HTML overlay" pattern that the live
+MiniMax Image-01 path now serves in the room.
 
 ## Stack
 

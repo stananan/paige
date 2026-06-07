@@ -912,7 +912,7 @@ function statusColor(paige: PaigeState): string {
   if (paige.speaking) return "bg-emerald-400";
   if (paige.thinking) return "bg-amber-300";
   if (paige.listening) return "bg-sky-400";
-  return "bg-white/30";
+  return "bg-slate-300";
 }
 
 function sourceLabel(sourceFile: string): string {
@@ -934,8 +934,8 @@ export function PaigeTile({ paige, compact = false }: { paige: PaigeState; compa
 
   if (!compact && paige.reply && paige.presenting) {
     return (
-      <div className="relative flex h-full w-full flex-col overflow-hidden rounded-lg bg-[#070d18] text-white">
-        <div className="flex items-center justify-between border-b border-white/10 bg-white/[0.03] px-3 py-2">
+      <div className="relative flex h-full w-full flex-col overflow-hidden rounded-lg border border-foreground/10 bg-white text-foreground">
+        <div className="flex items-center justify-between border-b border-foreground/10 bg-[#f1f6ff] px-3 py-2">
           <div className="flex items-center gap-2">
             <span className={`h-2 w-2 rounded-full ${statusColor(paige)} ${active ? "animate-pulse" : ""}`} />
             <span className="text-xs font-medium">
@@ -945,14 +945,14 @@ export function PaigeTile({ paige, compact = false }: { paige: PaigeState; compa
           <button
             type="button"
             onClick={paige.dismiss}
-            className="rounded-full border border-white/15 px-2 py-0.5 text-[10px] text-white/70 hover:bg-white/10"
+            className="rounded-full border border-foreground/15 px-2 py-0.5 text-[10px] text-foreground/60 hover:bg-foreground/5"
             aria-label="Close Paige answer"
           >
             Close ✕
           </button>
         </div>
         <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
-          <p className="text-sm font-semibold leading-snug text-emerald-100">
+          <p className="text-sm font-semibold leading-snug text-foreground">
             {paige.reply.answer}
           </p>
           {(paige.reply.chart ||
@@ -968,14 +968,14 @@ export function PaigeTile({ paige, compact = false }: { paige: PaigeState; compa
             />
           )}
           {paige.reply.citations[0]?.url && (
-            <figure className="overflow-hidden rounded-xl border border-white/10 bg-white/[0.04]">
-              <figcaption className="flex items-center justify-between gap-2 border-b border-white/10 px-3 py-2">
+            <figure className="overflow-hidden rounded-xl border border-foreground/10 bg-[#f6f9ff]">
+              <figcaption className="flex items-center justify-between gap-2 border-b border-foreground/10 px-3 py-2">
                 <div className="min-w-0">
-                  <p className="truncate text-[10px] font-medium text-white/75">
+                  <p className="truncate text-[10px] font-medium text-foreground/75">
                     Source preview ·{" "}
                     {sourceLabel(paige.reply.citations[0].sourceFile)}
                   </p>
-                  <p className="text-[9px] text-white/40">
+                  <p className="text-[9px] text-foreground/40">
                     Cited page {paige.reply.citations[0].page}
                   </p>
                 </div>
@@ -983,7 +983,7 @@ export function PaigeTile({ paige, compact = false }: { paige: PaigeState; compa
                   href={paige.reply.citations[0].url}
                   target="_blank"
                   rel="noreferrer"
-                  className="shrink-0 rounded border border-white/15 px-2 py-1 text-[9px] text-white/70 hover:bg-white/10"
+                  className="shrink-0 rounded border border-foreground/15 px-2 py-1 text-[9px] text-accent hover:bg-accent/5"
                 >
                   Open PDF
                 </a>
@@ -1008,7 +1008,7 @@ export function PaigeTile({ paige, compact = false }: { paige: PaigeState; compa
                     href={citation.url}
                     target="_blank"
                     rel="noreferrer"
-                    className="rounded border border-emerald-300/20 bg-emerald-300/10 px-1.5 py-1 text-[9px] text-emerald-100 hover:bg-emerald-300/20"
+                    className="rounded border border-accent/20 bg-accent/5 px-1.5 py-1 text-[9px] text-accent hover:bg-accent/10"
                     title={citation.sourceFile}
                   >
                     {sourceLabel(citation.sourceFile)} · p.{citation.page} · Open PDF ↗
@@ -1016,7 +1016,7 @@ export function PaigeTile({ paige, compact = false }: { paige: PaigeState; compa
                 ) : (
                   <span
                     key={`${citation.sourceFile}-${citation.page}`}
-                    className="rounded border border-white/10 bg-white/5 px-1.5 py-1 text-[9px] text-white/60"
+                    className="rounded border border-foreground/10 bg-foreground/5 px-1.5 py-1 text-[9px] text-foreground/60"
                   >
                     {sourceLabel(citation.sourceFile)} · p.{citation.page}
                   </span>
@@ -1030,7 +1030,7 @@ export function PaigeTile({ paige, compact = false }: { paige: PaigeState; compa
   }
 
   return (
-    <div className="relative flex h-full w-full flex-col items-center justify-center overflow-hidden rounded-lg bg-gradient-to-br from-[#10233b] via-[#0b1626] to-[#0a0f1c] text-white">
+    <div className="relative flex h-full w-full flex-col items-center justify-center overflow-hidden rounded-lg border border-foreground/10 bg-gradient-to-br from-[#eaf1ff] via-[#f1f6ff] to-white text-foreground">
       <div className="relative">
         <span
           className={`absolute inset-0 rounded-full ${statusColor(paige)} ${
@@ -1038,7 +1038,7 @@ export function PaigeTile({ paige, compact = false }: { paige: PaigeState; compa
           }`}
         />
         <div
-          className={`relative flex items-center justify-center rounded-full bg-gradient-to-br from-emerald-300 to-sky-400 font-semibold text-[#0a0f1c] ${
+          className={`relative flex items-center justify-center rounded-full bg-gradient-to-br from-accent to-[#60a5fa] font-semibold text-white shadow-lg shadow-accent/25 ${
             compact ? "h-10 w-10 text-base" : "h-20 w-20 text-3xl"
           }`}
         >
@@ -1047,19 +1047,19 @@ export function PaigeTile({ paige, compact = false }: { paige: PaigeState; compa
       </div>
 
       {!compact && conversational && (
-        <p className="mt-4 max-w-[85%] text-center text-sm leading-snug text-white/80">
+        <p className="mt-4 max-w-[85%] text-center text-sm leading-snug text-foreground/70">
           “{conversational}”
         </p>
       )}
 
-      <div className="absolute bottom-2 left-2 flex items-center gap-1.5 rounded-md bg-black/45 px-2 py-1 backdrop-blur">
+      <div className="absolute bottom-2 left-2 flex items-center gap-1.5 rounded-md border border-foreground/10 bg-white/85 px-2 py-1 backdrop-blur">
         <span className={`h-2 w-2 rounded-full ${statusColor(paige)} ${active ? "animate-pulse" : ""}`} />
         <span className={`font-medium ${compact ? "text-[10px]" : "text-xs"}`}>
           Paige{compact ? "" : " · AI copilot"}
         </span>
       </div>
       {!compact && (
-        <span className="absolute right-2 top-2 rounded-md bg-black/35 px-2 py-0.5 text-[10px] text-white/70 backdrop-blur">
+        <span className="absolute right-2 top-2 rounded-md border border-foreground/10 bg-white/85 px-2 py-0.5 text-[10px] text-foreground/70 backdrop-blur">
           {statusLabel(paige)}
         </span>
       )}
@@ -1072,7 +1072,7 @@ export function PaigeDock({ paige, onClose }: { paige: PaigeState; onClose: () =
   const active =
     paige.recording || paige.speaking || paige.thinking || paige.listening;
   return (
-    <div className="pointer-events-auto absolute bottom-20 right-4 z-20 w-[min(22rem,calc(100vw-2rem))] rounded-2xl border border-white/10 bg-black/75 p-3 text-white shadow-2xl backdrop-blur">
+    <div className="pointer-events-auto absolute bottom-20 right-4 z-20 w-[min(22rem,calc(100vw-2rem))] rounded-2xl border border-foreground/10 bg-white/90 p-3 text-foreground shadow-2xl shadow-accent/10 backdrop-blur">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className={`h-2.5 w-2.5 rounded-full ${statusColor(paige)} ${active ? "animate-pulse" : ""}`} />
@@ -1083,7 +1083,7 @@ export function PaigeDock({ paige, onClose }: { paige: PaigeState; onClose: () =
             <button
               type="button"
               onClick={paige.toggle}
-              className="rounded-full border border-white/20 px-2 py-0.5 text-xs hover:bg-white/10"
+              className="rounded-full border border-foreground/20 px-2 py-0.5 text-xs hover:bg-foreground/5"
             >
               {statusLabel(paige)}
               {active ? "…" : ""}
@@ -1092,7 +1092,7 @@ export function PaigeDock({ paige, onClose }: { paige: PaigeState; onClose: () =
           <button
             type="button"
             onClick={onClose}
-            className="rounded-full border border-white/20 px-2 py-0.5 text-xs text-white/70 hover:bg-white/10"
+            className="rounded-full border border-foreground/20 px-2 py-0.5 text-xs text-foreground/60 hover:bg-foreground/5"
             aria-label="Close Paige text window"
           >
             ✕
@@ -1100,7 +1100,7 @@ export function PaigeDock({ paige, onClose }: { paige: PaigeState; onClose: () =
         </div>
       </div>
 
-      <p className="mt-2 text-[11px] text-white/45">
+      <p className="mt-2 text-[11px] text-foreground/45">
         {paige.supported
           ? paige.recording
             ? "Recording · release Space to send"
@@ -1108,27 +1108,27 @@ export function PaigeDock({ paige, onClose }: { paige: PaigeState; onClose: () =
           : "Voice needs Chrome · type below"}
       </p>
       {paige.heard && (
-        <p className="mt-1 text-xs text-white/70">
-          <span className="text-white/40">
+        <p className="mt-1 text-xs text-foreground/70">
+          <span className="text-foreground/40">
             {paige.heardBy ? `${paige.heardBy}:` : "heard:"}
           </span>{" "}
           {paige.heard}
         </p>
       )}
-      {paige.thinking && <p className="mt-1 text-xs text-amber-200">Searching the company documents…</p>}
-      {paige.error && <p className="mt-1 text-xs text-red-300">{paige.error}</p>}
+      {paige.thinking && <p className="mt-1 text-xs text-amber-600">Searching the company documents…</p>}
+      {paige.error && <p className="mt-1 text-xs text-red-500">{paige.error}</p>}
 
       <form onSubmit={paige.submitChat} className="mt-2 flex gap-1.5">
         <input
           value={paige.input}
           onChange={(e) => paige.setInput(e.target.value)}
           placeholder="Type to Paige…"
-          className="min-w-0 flex-1 rounded-lg border border-white/15 bg-white/5 px-2.5 py-1.5 text-sm outline-none placeholder:text-white/30 focus:border-white/40"
+          className="min-w-0 flex-1 rounded-lg border border-foreground/15 bg-white px-2.5 py-1.5 text-sm outline-none placeholder:text-foreground/30 focus:border-accent/50"
         />
         <button
           type="submit"
           disabled={paige.thinking || paige.speaking}
-          className="rounded-lg border border-white/20 px-2.5 text-sm hover:bg-white/10 disabled:opacity-40"
+          className="rounded-lg border border-foreground/20 px-2.5 text-sm hover:bg-foreground/5 disabled:opacity-40"
           aria-label="Send to Paige"
         >
           ↑
@@ -1160,28 +1160,28 @@ export function AnswerVisual({
     const columnCount = Math.max(1, values.length);
 
     return (
-      <figure className="relative aspect-video overflow-hidden rounded-xl border border-white/10 bg-[#07111e]">
+      <figure className="relative aspect-video overflow-hidden rounded-xl border border-foreground/10 bg-[#eaf1ff]">
         {/* The generated image supplies the visual style. Exact source values stay
             in the HTML overlay so image models cannot rewrite the evidence. */}
         {/* eslint-disable-next-line @next/next/no-img-element -- blob URLs cannot use next/image */}
         <img
           src={visualUrl}
           alt=""
-          className={`absolute inset-0 h-full w-full scale-105 object-cover brightness-75 saturate-125 ${
+          className={`absolute inset-0 h-full w-full scale-105 object-cover brightness-90 saturate-110 ${
             chart ? "blur-[6px]" : "blur-[2px]"
           }`}
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#050a12] via-[#050a12]/25 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-white via-white/40 to-transparent" />
         <figcaption className="relative flex h-full flex-col justify-end p-3">
           {chart ? (
-            <div className="rounded-xl border border-white/15 bg-black/65 p-3 backdrop-blur">
-              <p className="text-xs font-semibold text-white">{chart.title}</p>
-              <p className="mt-0.5 text-[9px] text-white/55">
+            <div className="rounded-xl border border-foreground/15 bg-white/85 p-3 backdrop-blur">
+              <p className="text-xs font-semibold text-foreground">{chart.title}</p>
+              <p className="mt-0.5 text-[9px] text-foreground/55">
                 {chart.unit} · Exact values from cited PDFs
               </p>
               <div className="relative mt-3 h-24">
                 <span
-                  className="absolute inset-x-0 border-t border-white/25"
+                  className="absolute inset-x-0 border-t border-foreground/25"
                   style={{ top: `${zeroFromTop}%` }}
                 />
                 <div
@@ -1205,8 +1205,8 @@ export function AnswerVisual({
                         <span
                           className={`absolute inset-x-[18%] rounded-t-sm ${
                             value >= 0
-                              ? "bg-gradient-to-t from-emerald-500 to-sky-300"
-                              : "bg-gradient-to-b from-amber-300 to-rose-500"
+                              ? "bg-gradient-to-t from-accent to-[#60a5fa]"
+                              : "bg-gradient-to-b from-amber-400 to-rose-500"
                           }`}
                           style={{ top: `${top}%`, height: `${height}%` }}
                         />
@@ -1226,24 +1226,24 @@ export function AnswerVisual({
                     key={`${chart.labels[index]}-${index}`}
                     className="min-w-0 text-center"
                   >
-                    <p className="truncate text-[8px] text-white/60">
+                    <p className="truncate text-[8px] text-foreground/60">
                       {chart.labels[index]}
                     </p>
-                    <p className="text-[10px] font-semibold text-emerald-100">
+                    <p className="text-[10px] font-semibold text-accent">
                       {value.toLocaleString()}{" "}
-                      <span className="text-[8px] font-normal text-emerald-100/60">
+                      <span className="text-[8px] font-normal text-accent/60">
                         {chart.unit}
                       </span>
                     </p>
                   </div>
                 ))}
               </div>
-              <p className="mt-2 text-[8px] text-sky-100/45">
+              <p className="mt-2 text-[8px] text-foreground/45">
                 Visual by {visualModel || "AI"} · values overlaid from sources
               </p>
             </div>
           ) : (
-            <div className="self-start rounded-lg border border-white/15 bg-black/60 px-2.5 py-1.5 text-[9px] text-white/70 backdrop-blur">
+            <div className="self-start rounded-lg border border-foreground/15 bg-white/80 px-2.5 py-1.5 text-[9px] text-foreground/70 backdrop-blur">
               Generated visual by {visualModel || "AI"}
             </div>
           )}
@@ -1254,12 +1254,12 @@ export function AnswerVisual({
 
   if (visualLoading || !visualFailed) {
     return (
-      <figure className="flex min-h-48 flex-col items-center justify-center rounded-xl border border-sky-300/20 bg-gradient-to-br from-sky-300/10 to-emerald-300/5 p-5 text-center">
-        <span className="h-8 w-8 animate-spin rounded-full border-2 border-sky-200/20 border-t-sky-200" />
-        <p className="mt-3 text-xs font-medium text-sky-100">
+      <figure className="flex min-h-48 flex-col items-center justify-center rounded-xl border border-accent/20 bg-[#f1f6ff] p-5 text-center">
+        <span className="h-8 w-8 animate-spin rounded-full border-2 border-accent/20 border-t-accent" />
+        <p className="mt-3 text-xs font-medium text-accent">
           Give me a moment to create that visual.
         </p>
-        <p className="mt-1 text-[9px] text-white/40">
+        <p className="mt-1 text-[9px] text-foreground/40">
           {chart
             ? "The cited PDF values will stay overlaid on the generated image."
             : "MiniMax is generating a 16:9 visual now."}
@@ -1269,7 +1269,7 @@ export function AnswerVisual({
   }
 
   return (
-    <p className="rounded-xl border border-amber-300/20 bg-amber-300/10 p-3 text-xs text-amber-100">
+    <p className="rounded-xl border border-amber-300/40 bg-amber-50 p-3 text-xs text-amber-700">
       AI visual generation failed. The cited answer is still available below.
     </p>
   );

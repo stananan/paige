@@ -80,6 +80,7 @@ export default function RoomClient() {
       video
       audio
       data-lk-theme="default"
+      className="paige-room"
       style={{ height: "100dvh" }}
       onError={(e) => setError(e.message)}
       onDisconnected={() => {

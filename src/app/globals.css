@@ -64,3 +64,37 @@ body {
 .paige-fade-in {
   animation: paige-fade-in 0.35s ease-out;
 }
+
+/* LiveKit meeting room — recolor the default dark prefab to the light blue +
+   white theme. Variables cascade from the room container to every control,
+   tile, and placeholder. */
+[data-lk-theme="default"].paige-room {
+  --lk-bg: #ffffff;
+  --lk-bg2: #eaf1ff;
+  --lk-bg3: #dbe7ff;
+  --lk-bg4: #2563eb;
+  --lk-bg5: #1d4ed8;
+  --lk-fg: #0b1b3a;
+  --lk-fg2: #0b1b3a;
+  --lk-fg3: #5b6b86;
+  --lk-border-color: rgba(11, 27, 58, 0.12);
+  --lk-accent-bg: #2563eb;
+  --lk-accent-fg: #ffffff;
+  --lk-control-bg: #ffffff;
+  --lk-control-fg: #0b1b3a;
+  --lk-control-hover-bg: #eaf1ff;
+  --lk-control-active-bg: #2563eb;
+  --lk-control-active-hover-bg: #1d4ed8;
+  background-color: #f1f6ff;
+}
+
+/* Keep participant name labels legible over the (dark) webcam feeds. */
+.paige-room .lk-participant-metadata-item {
+  background-color: rgba(11, 27, 58, 0.6);
+  color: #ffffff;
+}
+
+/* Light control bar resting on the white room. */
+.paige-room .lk-control-bar {
+  background-color: #ffffff;
+}
