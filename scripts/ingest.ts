@@ -4,6 +4,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { MossClient, type DocumentInfo } from "@moss-dev/moss";
 import {
+  parseUnsiloedResult,
   sameDocument,
   toMossDocuments,
   type UnsiloedParseResult,
@@ -50,10 +51,12 @@ async function parsePdf(
   const cachePath = join(CACHE_DIR, `${hash}.json`);
 
   if (useCache && existsSync(cachePath)) {
-    const cached = JSON.parse(await readFile(cachePath, "utf8")) as UnsiloedParseResult;
-    if (cached.status === "Succeeded") {
+    try {
+      const cached = parseUnsiloedResult(JSON.parse(await readFile(cachePath, "utf8")));
       console.log(`[unsiloed] cache hit: ${fileName}`);
       return cached;
+    } catch {
+      console.warn(`[unsiloed] ignoring invalid cache entry: ${fileName}`);
     }
   }
 
@@ -70,7 +73,14 @@ async function parsePdf(
     throw new Error(`Unsiloed submit failed for ${fileName}: ${submit.status} ${submitBody}`);
   }
 
-  const jobId = (JSON.parse(submitBody) as { job_id?: string }).job_id;
+  const submitResult = JSON.parse(submitBody) as unknown;
+  const jobId =
+    typeof submitResult === "object" &&
+    submitResult !== null &&
+    "job_id" in submitResult &&
+    typeof submitResult.job_id === "string"
+      ? submitResult.job_id
+      : undefined;
   if (!jobId) throw new Error(`Unsiloed did not return a job_id for ${fileName}`);
   console.log(`[unsiloed] submitted ${fileName}: ${jobId}`);
 
@@ -84,11 +94,26 @@ async function parsePdf(
     if (!poll.ok) {
       throw new Error(`Unsiloed poll failed for ${fileName}: ${poll.status} ${pollBody}`);
     }
-    result = JSON.parse(pollBody) as UnsiloedParseResult;
-    console.log(`[unsiloed] ${fileName}: ${result.status}`);
-    if (result.status === "Succeeded") break;
-    if (result.status === "Failed") {
-      throw new Error(`Unsiloed parse failed for ${fileName}: ${result.message ?? "unknown"}`);
+    const pollResult = JSON.parse(pollBody) as unknown;
+    if (
+      typeof pollResult !== "object" ||
+      pollResult === null ||
+      !("status" in pollResult) ||
+      typeof pollResult.status !== "string"
+    ) {
+      throw new Error(`Unsiloed poll returned an invalid response for ${fileName}`);
+    }
+    console.log(`[unsiloed] ${fileName}: ${pollResult.status}`);
+    if (pollResult.status === "Succeeded") {
+      result = parseUnsiloedResult(pollResult);
+      break;
+    }
+    if (pollResult.status === "Failed") {
+      const message =
+        "message" in pollResult && typeof pollResult.message === "string"
+          ? pollResult.message
+          : "unknown";
+      throw new Error(`Unsiloed parse failed for ${fileName}: ${message}`);
     }
   }
 

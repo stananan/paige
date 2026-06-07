@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+  parseUnsiloedResult,
   sameDocument,
   splitText,
   toMossDocuments,
@@ -10,6 +11,17 @@ import {
 describe("splitText", () => {
   test("returns short content unchanged", () => {
     expect(splitText("Revenue was $210 million.")).toEqual(["Revenue was $210 million."]);
+  });
+
+  test("returns no chunks for blank content", () => {
+    expect(splitText(" \n\t ")).toEqual([]);
+  });
+
+  test("rejects invalid chunk settings even for short content", () => {
+    expect(() => splitText("short", { maxChars: 199 })).toThrow("integer of at least 200");
+    expect(() => splitText("short", { maxChars: 200, overlapChars: 200 })).toThrow(
+      "between 0 and maxChars - 1",
+    );
   });
 
   test("bounds long chunks and retains overlap", () => {
@@ -56,9 +68,14 @@ describe("toMossDocuments", () => {
 
   test("produces stable ids and a usable verification query", () => {
     const first = toMossDocuments(result, "report.pdf");
-    const second = toMossDocuments(result, "report.pdf");
+    const reparsed: UnsiloedParseResult = {
+      ...result,
+      chunks: result.chunks.map((chunk) => ({ ...chunk, chunk_id: "new-provider-uuid" })),
+    };
+    const second = toMossDocuments(reparsed, "report.pdf");
 
     expect(first.map((document) => document.id)).toEqual(second.map((document) => document.id));
+    expect(first).toEqual(second);
     expect(verificationQuery(first).toLowerCase()).toContain("revenue");
   });
 
@@ -72,6 +89,41 @@ describe("toMossDocuments", () => {
       "has no page metadata",
     );
   });
+
+  test("refuses a partially unattributed segment in a multi-page document", () => {
+    const partiallyAttributed: UnsiloedParseResult = {
+      ...result,
+      chunks: [
+        {
+          chunk_id: "chunk-3",
+          embed: "Combined text",
+          segments: [
+            { page_number: 1, markdown: "Attributed content" },
+            { markdown: "Content with no page" },
+          ],
+        },
+      ],
+    };
+
+    expect(() => toMossDocuments(partiallyAttributed, "report.pdf")).toThrow(
+      "content without valid page metadata",
+    );
+  });
+
+  test("refuses page metadata beyond the parsed page count", () => {
+    const outOfRange: UnsiloedParseResult = {
+      ...result,
+      chunks: [
+        {
+          chunk_id: "chunk-4",
+          embed: "Out-of-range content",
+          segments: [{ page_number: 3, markdown: "Impossible page" }],
+        },
+      ],
+    };
+
+    expect(() => toMossDocuments(outOfRange, "report.pdf")).toThrow("beyond page_count 2");
+  });
 });
 
 describe("sameDocument", () => {
@@ -82,5 +134,19 @@ describe("sameDocument", () => {
         { id: "1", text: "Revenue", metadata: { page: "1", sourceFile: "report.pdf" } },
       ),
     ).toBe(true);
+  });
+});
+
+describe("parseUnsiloedResult", () => {
+  test("rejects malformed successful responses before indexing", () => {
+    expect(() =>
+      parseUnsiloedResult({
+        job_id: "job-1",
+        status: "Succeeded",
+        file_name: "report.pdf",
+        total_chunks: 1,
+        chunks: [{ chunk_id: "chunk-1", embed: "text", segments: "not-an-array" }],
+      }),
+    ).toThrow("invalid chunk");
   });
 });
