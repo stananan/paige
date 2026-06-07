@@ -1028,7 +1028,6 @@ function pdfPreviewUrl(url: string, page = "1"): string {
 export function PaigeTile({ paige, compact = false }: { paige: PaigeState; compact?: boolean }) {
   const active =
     paige.recording || paige.speaking || paige.thinking || paige.listening;
-  const conversational = paige.reply && !paige.presenting ? paige.reply.answer : "";
 
   if (!compact && paige.reply && paige.presenting) {
     return (
@@ -1145,12 +1144,6 @@ export function PaigeTile({ paige, compact = false }: { paige: PaigeState; compa
         speaking={paige.speaking}
         mouthLevel={paige.mouthLevel}
       />
-
-      {!compact && conversational && (
-        <p className="mt-4 max-w-[85%] text-center text-sm leading-snug text-foreground/70">
-          “{conversational}”
-        </p>
-      )}
 
       <div className="absolute bottom-2 left-2 flex items-center gap-1.5 rounded-md border border-foreground/10 bg-white/85 px-2 py-1 backdrop-blur">
         <span className={`h-2 w-2 rounded-full ${statusColor(paige)} ${active ? "animate-pulse" : ""}`} />

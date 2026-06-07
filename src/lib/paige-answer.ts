@@ -255,6 +255,44 @@ export function retrievalQueryForQuestion(question: string): string {
   return `${question}\nRetrieval periods: ${periods.join(" and ")}.`;
 }
 
+const FOLLOW_UP_CUE =
+  /^(?:and\b|also\b|what about\b|how about\b|same (?:thing|question|metric)\b|compare (?:that|it|those)\b)|\b(?:that|those|it|them|same period|same quarter|same year|previous quarter|previous year)\b/i;
+
+function explicitMetricTerms(text: string): string[] {
+  return (
+    text.match(
+      /\b(?:revenue|exit arr|arr|gross margin|operating income|operating cash flow|cash flow|nrr|customers?|employees?|headcount|bookings?|pipeline|churn|retention|renewals?|support|incidents?|security|compliance|roadmap|budget|forecast)\b/gi,
+    ) ?? []
+  );
+}
+
+function carryForwardTerms(question: string, previousQuestion: string): string[] {
+  const terms: string[] = [];
+  if (requestedQuarterLabels(question).size === 0) {
+    terms.push(...requestedQuarterLabels(previousQuestion));
+  }
+  if (requestedYearLabels(question).size === 0) {
+    terms.push(...requestedYearLabels(previousQuestion));
+  }
+  if (explicitMetricTerms(question).length === 0) {
+    terms.push(...explicitMetricTerms(previousQuestion));
+  }
+  return [...new Set(terms.map((term) => term.trim()).filter(Boolean))];
+}
+
+export function resolveGroundedFollowUp(
+  question: string,
+  history: PaigeConversationTurn[] = [],
+): string {
+  const current = question.trim();
+  const previousQuestion = history.at(-1)?.question.trim();
+  if (!previousQuestion || !FOLLOW_UP_CUE.test(current)) return current;
+
+  const carriedTerms = carryForwardTerms(current, previousQuestion);
+  if (carriedTerms.length === 0) return current;
+  return `${current}\nCarry forward only these omitted details from the previous user question: ${carriedTerms.join(", ")}.`;
+}
+
 function documentTermScore(terms: string[], document: RetrievedDocument): number {
   const haystack = `${document.sourceFile}\n${document.text}`.toLowerCase();
   return terms.reduce(
@@ -497,7 +535,6 @@ export async function retrieveMossDocuments(
 function buildPrompt(
   question: string,
   documents: RetrievedDocument[],
-  history: PaigeConversationTurn[] = [],
 ): string {
   let remaining = MAX_CONTEXT_CHARS;
   const sources: string[] = [];
@@ -529,16 +566,6 @@ function buildPrompt(
     "Never calculate, convert, or invent chart values or units.",
     "Only chart values that share one unit; never mix currency amounts and percentages in the same chart.",
     "",
-    ...(history.length > 0
-      ? [
-          "Recent conversation context (for resolving follow-ups only; it is not evidence):",
-          ...history.slice(-6).flatMap((turn) => [
-            `User: ${turn.question}`,
-            `Paige: ${turn.answer}`,
-          ]),
-          "",
-        ]
-      : []),
     `Question: ${question}`,
     "",
     "Sources:",
@@ -590,8 +617,9 @@ function requestedMetric(question: string): string[] | null {
   const explicit = metrics.find(([pattern]) => pattern.test(normalized))?.[1];
   if (explicit) return explicit;
   if (
-    questionRequestsChart(question) &&
-    /\b(?:quarter|quarterly|reports?)\b/i.test(question)
+    requestsQuarterlyReportCollection(question) ||
+    (questionRequestsChart(question) &&
+      /\b(?:quarter|quarterly|reports?)\b/i.test(question))
   ) {
     return ["revenue"];
   }
@@ -1451,7 +1479,7 @@ export async function generateAnswerFromDocuments(
         },
         {
           role: "user",
-          content: buildPrompt(question, documents, dependencies.history),
+          content: buildPrompt(question, documents),
         },
       ],
       reasoning_effort: "none",
@@ -1632,15 +1660,11 @@ export async function askPaige(
     return generateConversationalAnswer(question, dependencies);
   }
 
-  const recentQuestions = (dependencies.history ?? [])
-    .slice(-3)
-    .map((turn) => turn.question)
-    .filter(Boolean);
-  const contextualQuestion =
-    recentQuestions.length > 0
-      ? `${recentQuestions.map((item) => `Previous question: ${item}`).join("\n")}\nCurrent question: ${question}`
-      : question;
-  const retrievalQuestion = retrievalQueryForQuestion(contextualQuestion);
+  const groundedQuestion = resolveGroundedFollowUp(
+    question,
+    dependencies.history,
+  );
+  const retrievalQuestion = retrievalQueryForQuestion(groundedQuestion);
   let documents: RetrievedDocument[] = [];
   try {
     documents = await withTimeout(
@@ -1657,27 +1681,40 @@ export async function askPaige(
   }
 
   if (documents.length === 0) {
-    return generateConversationalAnswer(question, dependencies);
+    const model =
+      (dependencies.environment ?? process.env).TRUEFOUNDRY_MODEL?.trim() || DEFAULT_MODEL;
+    return {
+      answer: "I couldn't find that in the indexed company documents.",
+      citations: [],
+      chart: null,
+      model,
+    };
   }
 
   let grounded: PaigeAnswer;
   try {
-    grounded = await generateAnswerFromDocuments(question, documents, dependencies);
+    grounded = await generateAnswerFromDocuments(groundedQuestion, documents, {
+      ...dependencies,
+      history: undefined,
+    });
   } catch (error) {
     // Generation or output validation failed (e.g. the model cited a page that
-    // didn't carry a number it mentioned). Don't hard-fail the whole request —
-    // Paige still answers conversationally.
+    // didn't carry a number it mentioned). Stay on the evidence path: use a
+    // deterministic source answer when possible, otherwise decline to guess.
     if (dependencies.signal?.aborted) throw error;
     const model =
       (dependencies.environment ?? process.env).TRUEFOUNDRY_MODEL?.trim() || DEFAULT_MODEL;
-    const deterministic = deterministicEvidenceAnswer(question, documents, model);
+    const deterministic = deterministicEvidenceAnswer(groundedQuestion, documents, model);
     if (deterministic) return deterministic;
-    return generateConversationalAnswer(question, dependencies);
+    return {
+      answer: "I couldn't verify that from the indexed company documents.",
+      citations: [],
+      chart: null,
+      model,
+    };
   }
-  // The model found the documents but none actually supported an answer; rather
-  // than the dead-end "I couldn't find that", let Paige respond conversationally.
   if (grounded.citations.length === 0) {
-    return generateConversationalAnswer(question, dependencies);
+    return grounded;
   }
   return grounded;
 }

@@ -6,6 +6,7 @@ import {
   generateAnswerFromDocuments,
   generateConversationalAnswer,
   parseModelAnswer,
+  resolveGroundedFollowUp,
   retrievalQueryForQuestion,
   retrieveMossDocuments,
   shouldRetrieveCompanyDocuments,
@@ -550,6 +551,7 @@ describe("generateAnswerFromDocuments", () => {
       expect(request.model).toBe("openai/gpt-5.4-mini");
       expect(request.reasoning_effort).toBe("none");
       expect(request.messages[1].content).toContain("[1] annual-report.pdf, page 7");
+      expect(request.messages[1].content).not.toContain("$999 million");
 
       return Response.json({
         choices: [
@@ -573,6 +575,12 @@ describe("generateAnswerFromDocuments", () => {
         TRUEFOUNDRY_API_KEY: "test-key",
         TRUEFOUNDRY_MODEL: "openai/gpt-5.4-mini",
       },
+      history: [
+        {
+          question: "What did we say earlier?",
+          answer: "A prior generated answer claimed $999 million.",
+        },
+      ],
     });
 
     expect(answer.answer).toBe("Revenue reached $210 million in 2025.");
@@ -932,6 +940,28 @@ describe("retrieval intent", () => {
       retrievalQueryForQuestion("Give me a visual of the reports last year."),
     ).toContain("Q1 2025 and Q2 2025 and Q3 2025 and Q4 2025");
   });
+
+  test("carries only omitted user intent into a genuine follow-up", () => {
+    expect(
+      resolveGroundedFollowUp("What about Q3?", [
+        {
+          question: "What was Q2 2025 revenue?",
+          answer: "An untrusted prior answer claimed $999 million.",
+        },
+      ]),
+    ).toBe(
+      "What about Q3?\nCarry forward only these omitted details from the previous user question: 2025, revenue.",
+    );
+  });
+
+  test("does not contaminate an explicit question with older turns", () => {
+    expect(
+      resolveGroundedFollowUp("What was Q4 2025 revenue?", [
+        { question: "What was Q2 2025 revenue?", answer: "$16.8 million" },
+        { question: "What about Q3?", answer: "$17.2 million" },
+      ]),
+    ).toBe("What was Q4 2025 revenue?");
+  });
 });
 
 describe("FDC quarterly corpus", () => {
@@ -1067,6 +1097,38 @@ describe("askPaige conversational fallback", () => {
 
     expect(answer.answer).toContain("$210 million");
     expect(answer.citations).toEqual([{ sourceFile: "annual-report.pdf", page: "8" }]);
+  });
+
+  test("does not turn missing indexed evidence into a free-form company answer", async () => {
+    let conversationCalled = false;
+    const answer = await askPaige("What was Q2 2024 revenue?", {
+      environment: conversationEnvironment,
+      history: [
+        {
+          question: "What was Q2 2025 revenue?",
+          answer: "A prior answer claimed $999 million.",
+        },
+      ],
+      fetchImpl: async (input) => {
+        const url = String(input);
+        if (url.endsWith("/identity/auth/token")) {
+          return Response.json({ token: "moss-token" }, { status: 201 });
+        }
+        if (url.endsWith("/query")) return Response.json({ docs: [] });
+        if (url.endsWith("/manage")) return Response.json({ docs: [] });
+        if (url.endsWith("/chat/completions")) {
+          conversationCalled = true;
+          return Response.json({
+            choices: [{ message: { content: "The answer is $999 million." } }],
+          });
+        }
+        throw new Error(`unexpected request: ${url}`);
+      },
+    });
+
+    expect(conversationCalled).toBe(false);
+    expect(answer.answer).toContain("indexed company documents");
+    expect(answer.citations).toEqual([]);
   });
 });
 
