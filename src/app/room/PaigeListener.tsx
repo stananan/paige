@@ -43,6 +43,7 @@ import {
   type VisualRequestKind,
   type PaigeRoomEvent,
 } from "@/lib/paige-room";
+import { PaigeAvatar } from "./PaigeAvatar";
 
 export interface PaigeState {
   supported: boolean;
@@ -50,6 +51,7 @@ export interface PaigeState {
   recording: boolean;
   thinking: boolean;
   speaking: boolean;
+  mouthLevel: number;
   heard: string;
   heardBy: string;
   reply: PaigeAnswer | null;
@@ -121,6 +123,7 @@ export function usePaige(liveKitToken: string): PaigeState {
   const [heardBy, setHeardBy] = useState("");
   const [reply, setReply] = useState<PaigeAnswer | null>(null);
   const [speaking, setSpeaking] = useState(false);
+  const [mouthLevel, setMouthLevel] = useState(0);
   const [visualUrl, setVisualUrl] = useState("");
   const [visualModel, setVisualModel] = useState("");
   const [visualLoading, setVisualLoading] = useState(false);
@@ -137,6 +140,8 @@ export function usePaige(liveKitToken: string): PaigeState {
   const requestRef = useRef<AbortController | null>(null);
   const speechAbortRef = useRef<AbortController | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const mouthAudioContextRef = useRef<AudioContext | null>(null);
+  const mouthAnimationFrameRef = useRef<number | null>(null);
   const finishSpeechRef = useRef<(() => void) | null>(null);
   const pushToTalkHeldRef = useRef(false);
   const currentInteractionIdRef = useRef("");
@@ -193,15 +198,74 @@ export function usePaige(liveKitToken: string): PaigeState {
     [],
   );
 
+  const stopMouthTracking = useCallback(() => {
+    if (mouthAnimationFrameRef.current !== null) {
+      cancelAnimationFrame(mouthAnimationFrameRef.current);
+      mouthAnimationFrameRef.current = null;
+    }
+    const context = mouthAudioContextRef.current;
+    mouthAudioContextRef.current = null;
+    if (context && context.state !== "closed") {
+      void context.close().catch(() => {});
+    }
+    setMouthLevel(0);
+  }, []);
+
+  const startMouthTracking = useCallback(
+    async (audio: HTMLAudioElement) => {
+      stopMouthTracking();
+      try {
+        const context = new AudioContext({ latencyHint: "interactive" });
+        const source = context.createMediaElementSource(audio);
+        const analyser = context.createAnalyser();
+        analyser.fftSize = 256;
+        analyser.smoothingTimeConstant = 0.45;
+        source.connect(analyser);
+        analyser.connect(context.destination);
+        mouthAudioContextRef.current = context;
+        await context.resume();
+
+        const waveform = new Uint8Array(analyser.fftSize);
+        let smoothed = 0;
+        const track = () => {
+          if (
+            mouthAudioContextRef.current !== context ||
+            audio.paused ||
+            audio.ended
+          ) {
+            setMouthLevel(0);
+            return;
+          }
+          analyser.getByteTimeDomainData(waveform);
+          let energy = 0;
+          for (const sample of waveform) {
+            const centered = (sample - 128) / 128;
+            energy += centered * centered;
+          }
+          const rms = Math.sqrt(energy / waveform.length);
+          const target = Math.min(1, Math.max(0, (rms - 0.018) * 11));
+          smoothed = smoothed * 0.58 + target * 0.42;
+          setMouthLevel(smoothed);
+          mouthAnimationFrameRef.current = requestAnimationFrame(track);
+        };
+        mouthAnimationFrameRef.current = requestAnimationFrame(track);
+      } catch {
+        stopMouthTracking();
+      }
+    },
+    [stopMouthTracking],
+  );
+
   const stopSpeech = useCallback(() => {
     speechAbortRef.current?.abort();
     speechAbortRef.current = null;
     const audio = audioRef.current;
     if (audio) audio.pause();
+    stopMouthTracking();
     finishSpeechRef.current?.();
     setSpeaking(false);
     speakingRef.current = false;
-  }, []);
+  }, [stopMouthTracking]);
 
   const speak = useCallback(
     async (text: string, interactionId: string, revealAnswer: () => void) => {
@@ -242,6 +306,7 @@ export function usePaige(liveKitToken: string): PaigeState {
         audioRef.current = audio;
         setSpeaking(true);
         speakingRef.current = true;
+        await startMouthTracking(audio);
 
         const ended = new Promise<void>((resolve) => {
           finishSpeechRef.current = resolve;
@@ -265,11 +330,12 @@ export function usePaige(liveKitToken: string): PaigeState {
         if (audioRef.current === audio) audioRef.current = null;
         if (finishSpeechRef.current) finishSpeechRef.current = null;
         if (url) URL.revokeObjectURL(url);
+        stopMouthTracking();
         setSpeaking(false);
         speakingRef.current = false;
       }
     },
-    [stopSpeech],
+    [startMouthTracking, stopMouthTracking, stopSpeech],
   );
 
   const publishEvent = useCallback(
@@ -909,6 +975,7 @@ export function usePaige(liveKitToken: string): PaigeState {
     recording,
     thinking,
     speaking,
+    mouthLevel,
     heard,
     heardBy,
     reply,
@@ -968,6 +1035,14 @@ export function PaigeTile({ paige, compact = false }: { paige: PaigeState; compa
       <div className="relative flex h-full w-full flex-col overflow-hidden rounded-lg border border-foreground/10 bg-white text-foreground">
         <div className="flex items-center justify-between border-b border-foreground/10 bg-[#f1f6ff] px-3 py-2">
           <div className="flex items-center gap-2">
+            <PaigeAvatar
+              compact
+              listening={paige.listening}
+              recording={paige.recording}
+              thinking={paige.thinking}
+              speaking={paige.speaking}
+              mouthLevel={paige.mouthLevel}
+            />
             <span className={`h-2 w-2 rounded-full ${statusColor(paige)} ${active ? "animate-pulse" : ""}`} />
             <span className="text-xs font-medium">
               Paige · presenting to everyone
@@ -1062,20 +1137,14 @@ export function PaigeTile({ paige, compact = false }: { paige: PaigeState; compa
 
   return (
     <div className="relative flex h-full w-full flex-col items-center justify-center overflow-hidden rounded-lg border border-foreground/10 bg-gradient-to-br from-[#eaf1ff] via-[#f1f6ff] to-white text-foreground">
-      <div className="relative">
-        <span
-          className={`absolute inset-0 rounded-full ${statusColor(paige)} ${
-            active ? "animate-ping opacity-40" : "opacity-0"
-          }`}
-        />
-        <div
-          className={`relative flex items-center justify-center rounded-full bg-gradient-to-br from-accent to-[#60a5fa] font-semibold text-white shadow-lg shadow-accent/25 ${
-            compact ? "h-10 w-10 text-base" : "h-20 w-20 text-3xl"
-          }`}
-        >
-          P
-        </div>
-      </div>
+      <PaigeAvatar
+        compact={compact}
+        listening={paige.listening}
+        recording={paige.recording}
+        thinking={paige.thinking}
+        speaking={paige.speaking}
+        mouthLevel={paige.mouthLevel}
+      />
 
       {!compact && conversational && (
         <p className="mt-4 max-w-[85%] text-center text-sm leading-snug text-foreground/70">

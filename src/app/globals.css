@@ -98,3 +98,369 @@ body {
 .paige-room .lk-control-bar {
   background-color: #ffffff;
 }
+
+@keyframes paige-avatar-breathe {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-1.5%) scale(1.008);
+  }
+}
+
+@keyframes paige-avatar-blink {
+  0%,
+  45%,
+  50%,
+  100% {
+    transform: scaleY(1);
+  }
+  47%,
+  48% {
+    transform: scaleY(0.08);
+  }
+}
+
+@keyframes paige-avatar-think {
+  0%,
+  100% {
+    transform: rotate(-1.5deg) translateY(0);
+  }
+  50% {
+    transform: rotate(1.5deg) translateY(-1.5%);
+  }
+}
+
+.paige-avatar {
+  --avatar-scale: 1;
+  position: relative;
+  width: min(52%, 15rem);
+  aspect-ratio: 4 / 5;
+  flex: none;
+  isolation: isolate;
+  animation: paige-avatar-breathe 4.2s ease-in-out infinite;
+}
+
+.paige-avatar--compact {
+  width: 1.8rem;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: 999px;
+  background: linear-gradient(145deg, #dbeafe, #eff6ff);
+  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.18);
+}
+
+.paige-avatar[data-thinking] {
+  animation: paige-avatar-think 2.3s ease-in-out infinite;
+}
+
+.paige-avatar__glow {
+  position: absolute;
+  inset: 5% -18% 6%;
+  z-index: -1;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(96, 165, 250, 0.3), transparent 52%),
+    radial-gradient(circle at 50% 80%, rgba(37, 99, 235, 0.15), transparent 62%);
+  filter: blur(12px);
+}
+
+.paige-avatar__body {
+  position: absolute;
+  inset: 67% 8% 0;
+  overflow: hidden;
+  border-radius: 48% 48% 14% 14%;
+}
+
+.paige-avatar__blazer {
+  position: absolute;
+  bottom: -8%;
+  width: 60%;
+  height: 108%;
+  background: linear-gradient(155deg, #183b73, #2563eb);
+}
+
+.paige-avatar__blazer--left {
+  left: -5%;
+  transform: skewX(-12deg);
+}
+
+.paige-avatar__blazer--right {
+  right: -5%;
+  transform: skewX(12deg);
+}
+
+.paige-avatar__shirt {
+  position: absolute;
+  left: 35%;
+  bottom: -4%;
+  width: 30%;
+  height: 90%;
+  clip-path: polygon(0 0, 100% 0, 78% 100%, 22% 100%);
+  background: linear-gradient(#f8fbff, #dbeafe);
+}
+
+.paige-avatar__neck {
+  position: absolute;
+  left: 39%;
+  top: -18%;
+  width: 22%;
+  height: 42%;
+  border-radius: 0 0 45% 45%;
+  background: linear-gradient(90deg, #d99b7d, #f4bea0 48%, #d89577);
+}
+
+.paige-avatar__head {
+  position: absolute;
+  inset: 7% 17% 22%;
+  transform-origin: 50% 82%;
+}
+
+.paige-avatar[data-speaking] .paige-avatar__head {
+  animation: paige-avatar-breathe 1.6s ease-in-out infinite;
+}
+
+.paige-avatar__hair-back {
+  position: absolute;
+  inset: 0 2% 1%;
+  border-radius: 48% 52% 45% 48%;
+  background:
+    radial-gradient(circle at 30% 22%, #38241f 0 18%, transparent 19%),
+    radial-gradient(circle at 68% 24%, #2b1b1a 0 22%, transparent 23%),
+    linear-gradient(145deg, #4a2d27, #1f1718 72%);
+  box-shadow: 0 8px 24px rgba(34, 24, 29, 0.2);
+}
+
+.paige-avatar__face {
+  position: absolute;
+  inset: 13% 14% 5%;
+  overflow: hidden;
+  border-radius: 46% 46% 49% 49% / 41% 41% 57% 57%;
+  background:
+    radial-gradient(circle at 50% 82%, rgba(255, 255, 255, 0.2), transparent 25%),
+    linear-gradient(100deg, #dda184, #f6c6aa 52%, #d99579);
+  box-shadow:
+    inset 8px 0 18px rgba(117, 54, 45, 0.08),
+    inset -7px -4px 15px rgba(119, 64, 51, 0.08);
+}
+
+.paige-avatar__bun {
+  position: absolute;
+  top: -7%;
+  right: 7%;
+  width: 30%;
+  aspect-ratio: 1;
+  border-radius: 48% 52% 45% 55%;
+  background: linear-gradient(145deg, #4b302b, #211719);
+  box-shadow: inset 4px 2px 0 rgba(255, 255, 255, 0.05);
+}
+
+.paige-avatar__hair-front {
+  position: absolute;
+  top: 5%;
+  height: 39%;
+  width: 46%;
+  background: linear-gradient(150deg, #51332d, #24191b);
+  pointer-events: none;
+}
+
+.paige-avatar__hair-front--left {
+  left: 5%;
+  border-radius: 70% 20% 80% 20%;
+  transform: rotate(-8deg);
+  clip-path: polygon(0 0, 100% 0, 64% 100%, 13% 72%);
+}
+
+.paige-avatar__hair-front--right {
+  right: 2%;
+  border-radius: 20% 70% 20% 80%;
+  transform: rotate(6deg);
+  clip-path: polygon(0 0, 100% 0, 84% 72%, 22% 100%);
+}
+
+.paige-avatar__ear {
+  position: absolute;
+  top: 43%;
+  width: 13%;
+  height: 22%;
+  border-radius: 55%;
+  background: #dda083;
+}
+
+.paige-avatar__ear--left {
+  left: 8%;
+}
+
+.paige-avatar__ear--right {
+  right: 8%;
+}
+
+.paige-avatar__eye {
+  position: absolute;
+  top: 41%;
+  width: 18%;
+  height: 7%;
+  overflow: hidden;
+  border-radius: 50%;
+  background: #fffaf7;
+  transform-origin: center;
+  animation: paige-avatar-blink 5.6s infinite;
+  box-shadow: 0 -1px 0 rgba(72, 41, 40, 0.35);
+}
+
+.paige-avatar__eye--left {
+  left: 23%;
+}
+
+.paige-avatar__eye--right {
+  right: 23%;
+}
+
+.paige-avatar__eye span {
+  position: absolute;
+  top: -25%;
+  left: 36%;
+  width: 38%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle at 45% 40%, #111 0 24%, #654b3e 26% 62%, #221b1b 64%);
+}
+
+.paige-avatar[data-attentive] .paige-avatar__eye span {
+  transform: translateY(-4%);
+}
+
+.paige-avatar__brow {
+  position: absolute;
+  top: 34%;
+  width: 21%;
+  height: 3%;
+  border-radius: 999px;
+  background: #56372f;
+}
+
+.paige-avatar__brow--left {
+  left: 21%;
+  transform: rotate(-4deg);
+}
+
+.paige-avatar__brow--right {
+  right: 21%;
+  transform: rotate(4deg);
+}
+
+.paige-avatar[data-thinking] .paige-avatar__brow--right {
+  transform: translateY(-55%) rotate(7deg);
+}
+
+.paige-avatar__nose {
+  position: absolute;
+  top: 46%;
+  left: 46%;
+  width: 9%;
+  height: 20%;
+  border-radius: 80% 35% 55% 50%;
+  border-right: 2px solid rgba(137, 75, 62, 0.18);
+  border-bottom: 2px solid rgba(137, 75, 62, 0.18);
+}
+
+.paige-avatar__cheek {
+  position: absolute;
+  top: 60%;
+  width: 18%;
+  height: 9%;
+  border-radius: 50%;
+  background: rgba(231, 115, 111, 0.12);
+  filter: blur(2px);
+}
+
+.paige-avatar__cheek--left {
+  left: 15%;
+}
+
+.paige-avatar__cheek--right {
+  right: 15%;
+}
+
+.paige-avatar__mouth {
+  position: absolute;
+  left: 50%;
+  top: 71%;
+  width: 25%;
+  height: 11%;
+  overflow: hidden;
+  transform-origin: center;
+  border-radius: 45% 45% 52% 52%;
+  background: #733c47;
+  transition: transform 45ms linear;
+  box-shadow: inset 0 2px 0 rgba(82, 31, 38, 0.25);
+}
+
+.paige-avatar__mouth span {
+  position: absolute;
+  inset: 56% 12% -15%;
+  border-radius: 50%;
+  background: #d77b82;
+}
+
+.paige-avatar:not([data-speaking]) .paige-avatar__mouth {
+  height: 5%;
+  border-radius: 50%;
+  background: #a95d69;
+  box-shadow: none;
+}
+
+.paige-avatar[data-attentive]:not([data-speaking]) .paige-avatar__mouth {
+  width: 20%;
+  background: #92515c;
+}
+
+.paige-avatar__presence {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  transform: translateX(-50%);
+  border: 1px solid rgba(37, 99, 235, 0.14);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.8);
+  padding: 0.3rem 0.65rem;
+  color: #375071;
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  box-shadow: 0 6px 20px rgba(37, 99, 235, 0.08);
+  backdrop-filter: blur(8px);
+}
+
+.paige-avatar__presence span {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 999px;
+  background: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.paige-avatar[data-speaking] .paige-avatar__presence span {
+  background: #10b981;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.14);
+}
+
+.paige-avatar[data-thinking] .paige-avatar__presence span {
+  background: #f59e0b;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.14);
+}
+
+.paige-avatar--compact .paige-avatar__glow,
+.paige-avatar--compact .paige-avatar__body,
+.paige-avatar--compact .paige-avatar__ear,
+.paige-avatar--compact .paige-avatar__presence {
+  display: none;
+}
+
+.paige-avatar--compact .paige-avatar__head {
+  inset: 2% 1% -15%;
+}
