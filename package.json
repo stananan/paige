@@ -12,7 +12,8 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "bun test",
-    "ingest": "bun scripts/ingest.ts"
+    "ingest": "bun scripts/ingest.ts",
+    "qwen:test": "bun scripts/test-qwen-image.ts"
   },
   "dependencies": {
     "@livekit/components-react": "^2.9.21",

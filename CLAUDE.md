@@ -3,7 +3,8 @@
 A 3-person LiveKit meeting room (you + a friend + Paige as an agent participant). Paige
 listens the whole time and acts only when addressed by name ("Paige, …"). On command she
 retrieves from a Moss semantic index, speaks a one-line cited answer, shows a chart, then a
-beat later drops in a generated image (Qwen vs MiniMax race, through a TrueFoundry gateway).
+beat later drops in a generated image (Qwen via DashScope vs MiniMax). The answer LLM runs
+through TrueFoundry.
 Built for the YC Conversational AI Hackathon, Jun 6–7 2026.
 
 - Full approved design/plan: `~/.gstack/projects/paige/stanleyho-unknown-design-20260606-154311.md`

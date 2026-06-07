@@ -12,14 +12,16 @@ Built for the **YC Conversational AI Hackathon** (Jun 6–7 2026), Co-Pilot trac
 1. **Addressed activation** — always listening for context, but only _acts_ on "Paige, …". No talking over you.
 2. **Two-beat response** — fast (spoken takeaway + cited card + chart), then slow (a
    generated image, labeled with the model that made it). The fast beat hides image-gen latency.
-3. **Model race** — Qwen and MiniMax generate in parallel; first to finish wins and is shown, through a TrueFoundry gateway/fallback.
-4. **Citations on every answer** — source file + page, from Moss metadata.
+3. **Model race** — Qwen and MiniMax generate through their direct APIs in parallel; the
+   first to finish wins and is shown. TrueFoundry fronts the answer LLM.
+4. **Citations on every answer** — source file + page, from Moss metadata. Factual charts are
+   rendered deterministically; generated visuals are labeled and never treated as evidence.
 
 ## Stack
 
 Next.js 16 (App Router, TypeScript) on Vercel · **LiveKit** (room + voice) · **Moss**
-(semantic retrieval) · **Unsiloed** (PDF parsing) · **MiniMax** + **Qwen** (image race) ·
-**TrueFoundry** (AI gateway/fallback).
+(semantic retrieval) · **Unsiloed** (PDF parsing) · **MiniMax** + **Qwen via DashScope**
+(image race) · **TrueFoundry** (answer LLM gateway).
 
 ## Setup
 
@@ -31,6 +33,10 @@ Pre-ingest the corpus (offline, before the demo):
 
     # drop PDFs into /data, then:
     bun run ingest
+
+Smoke-test Qwen image generation (writes to ignored `data/.qwen-test/`):
+
+    bun run qwen:test
 
 ## Build order (spine first, flourish last)
 

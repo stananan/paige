@@ -9,7 +9,8 @@ A 3-person LiveKit room (you + a friend + Paige). Paige listens the whole time a
 *acts* when addressed by name ("Paige, …"). On command she retrieves from a **Moss**
 semantic index over pre-ingested company financial documents, **speaks** a one-line cited
 answer, shows a chart, then a beat later drops a generated image (Qwen vs MiniMax race via
-TrueFoundry). Demo-first; protect the "cited answer arriving live" hero beat.
+their direct APIs). The answer LLM runs through TrueFoundry. Demo-first; protect the "cited
+answer arriving live" hero beat.
 
 Full approved design/plan (outside the repo): `~/.gstack/projects/paige/stanleyho-unknown-design-20260606-154311.md`
 
@@ -58,6 +59,8 @@ src/lib/env.ts              typed env accessors
 scripts/ingest.ts           offline Unsiloed → page chunks → Moss sync + query verification
 scripts/ingest-lib.ts       pure page/chunk/citation transforms
 scripts/ingest.test.ts      focused ingestion unit tests
+scripts/test-qwen-image.ts  live z-image-turbo smoke test
+src/lib/qwen-image.ts       validated server-only DashScope image client
 data/                       corpus PDFs (gitignored), pre-ingested before demo
 agent/                      parked Python LiveKit-Agents worker (Deepgram path)
 ```
@@ -65,8 +68,8 @@ agent/                      parked Python LiveKit-Agents worker (Deepgram path)
 ## Stack & sponsors
 Next.js 16 / React 19 / Tailwind v4 on Vercel. **LiveKit** (room + transport) · **Moss**
 (semantic retrieval — the foundation) · **Unsiloed** (PDF parsing) · **MiniMax** (TTS now,
-image later) · **Qwen** (image) · **TrueFoundry** (LLM gateway + fallback) · browser **Web
-Speech API** (STT).
+image later) · **Qwen via DashScope** (image) · **TrueFoundry** (answer LLM gateway +
+fallback) · browser **Web Speech API** (STT).
 
 ## Env / keys
 In `.env` (gitignored). `.env.example` documents all. Deployed ones are also on Vercel
@@ -75,8 +78,10 @@ In `.env` (gitignored). `.env.example` documents all. Deployed ones are also on 
 - `MINIMAX_API_KEY` — set, on Vercel (TTS + image race; no GroupId needed).
 - `MOSS_PROJECT_ID` / `MOSS_PROJECT_KEY` — set (local). Ingest + retrieval.
 - `UNSILOED_API_KEY` — set (local). PDF parsing.
-- `QWEN_API_KEY` — present locally, but the WaveSpeed API currently returns `401 Unauthorized`;
-  replace or reactivate it before the image race.
+- `DASHSCOPE_API_KEY` / `QWEN_API_KEY` — Qwen image generation is live-verified through
+  Alibaba Model Studio's synchronous `z-image-turbo` endpoint. `bun run qwen:test` saves a
+  generated PNG under ignored `data/.qwen-test/`. The key was pasted into an agent chat, so
+  rotate it before the final demo deployment.
 - `TRUEFOUNDRY_API_KEY` / `TRUEFOUNDRY_BASE_URL` — valid locally, but `GET /models` currently
   returns zero models. Add a provider/model in the TrueFoundry dashboard and set
   `TRUEFOUNDRY_MODEL` before the fast beat.
@@ -101,6 +106,9 @@ In `.env` (gitignored). `.env.example` documents all. Deployed ones are also on 
    to an http(s) page to disconnect (the browse tool blocks `about:blank`).
 5. **Paige is browser-side** now (not a LiveKit participant). `agent/` is the parked alternative.
 6. React StrictMode (dev) double-mounts; `recognition.start()` is guarded with try/catch.
+7. **Generated graphs are not factual charts.** A live Qwen smoke test preserved the revenue
+   values but omitted year labels. Render cited charts deterministically in React/SVG; use
+   Qwen/MiniMax only for the separately labeled slow visual.
 
 ## Demo target
 Two people in `/room` on webcams. Someone says "Paige, compare our revenue the last 10 years."

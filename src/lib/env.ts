@@ -33,5 +33,5 @@ export const env = {
     model: optional("TRUEFOUNDRY_MODEL"),
   },
   minimax: { apiKey: optional("MINIMAX_API_KEY") },
-  qwen: { apiKey: optional("QWEN_API_KEY") },
+  qwen: { apiKey: optional("DASHSCOPE_API_KEY") ?? optional("QWEN_API_KEY") },
 };
