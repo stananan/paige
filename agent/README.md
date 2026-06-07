@@ -1,9 +1,9 @@
 # Paige agent — LiveKit Agents worker
 
-Paige joins the LiveKit room as a third participant. She hears everything but only
-*acts* when addressed by name ("Paige, ..."). Pipeline:
+Paige joins the LiveKit room as a third participant and acts on finalized user turns.
+Pipeline:
 
-    room audio → Deepgram STT → wake-word "Paige" → MiniMax TTS (she speaks)
+    room audio → Deepgram STT → MiniMax TTS (she speaks)
 
 The fast beat (task #4) inserts Moss retrieve → LLM (TrueFoundry) before TTS.
 
@@ -19,7 +19,7 @@ Needs `DEEPGRAM_API_KEY` in the repo-root `.env` (alongside `LIVEKIT_*` and
     uv run agent.py dev              # run the worker; Paige joins the LiveKit room
 
 With the worker running, open the web app's `/room` in two tabs — Paige is the
-third participant. Say "Paige, hello" and she speaks back. **Time the round-trip.**
+third participant. Send a short request and she speaks back. **Time the round-trip.**
 
 ## Notes
 - STT/TTS run on **our** keys (Deepgram + MiniMax plugins), not LiveKit's billed inference gateway.

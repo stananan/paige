@@ -63,15 +63,6 @@ export type PaigeRoomEvent =
       imageStatus?: "loading" | "ready" | "failed";
     });
 
-export type PaigeTranscriptIntent =
-  | { type: "ignore" }
-  | { type: "activate" }
-  | { type: "ask"; command: string; activate: boolean }
-  | { type: "end" };
-
-const WAKE_WORD = /\b(?:paige|pages|page|padge|paij)\b/i;
-const END_SESSION =
-  /\b(?:thank you|thanks)\s+(?:paige|pages|page|padge|paij)\b|\b(?:that(?:'s| is) it|we(?:'re| are) done|stop listening)(?:\s+(?:paige|pages|page|padge|paij))?\b/i;
 const MIN_SUBSTANTIVE_WORDS = 3;
 const CASUAL_ONLY =
   /^(?:u+h+|u+m+|h+m+|m+h+m+|yeah|yep|yes|no|okay|ok|right|sure|cool|great|nice|wow|exactly|agreed|interesting|got it|i see|i agree|i understand|that makes sense|that(?:'s| is) (?:interesting|helpful|good|great|right)|sounds good|fair enough|you know|let(?:'s| us) see)[.!?,\s]*$/i;
@@ -227,32 +218,6 @@ export function decodePaigeRoomEvent(payload: Uint8Array): PaigeRoomEvent | null
   return null;
 }
 
-export function transcriptIntent(
-  transcript: string,
-  sessionActive: boolean,
-  minimumWords = MIN_SUBSTANTIVE_WORDS,
-): PaigeTranscriptIntent {
-  const normalized = transcript.trim();
-  if (!normalized) return { type: "ignore" };
-  if (END_SESSION.test(normalized)) return { type: "end" };
-
-  const wake = WAKE_WORD.exec(normalized);
-  if (!sessionActive && !wake) return { type: "ignore" };
-  if (wake) {
-    const command = normalized
-      .slice((wake.index ?? 0) + wake[0].length)
-      .replace(/^[\s,.:!?-]+/, "")
-      .trim();
-    return command && transcriptWordCount(normalized) >= minimumWords
-      ? { type: "ask", command, activate: !sessionActive }
-      : { type: "activate" };
-  }
-  if (!isSubstantiveTranscript(normalized, minimumWords)) {
-    return { type: "ignore" };
-  }
-  return { type: "ask", command: normalized, activate: false };
-}
-
 export function transcriptWordCount(transcript: string): number {
   return transcript
     .trim()
@@ -273,14 +238,11 @@ export function isSubstantiveTranscript(
 
 export function shouldGenerateVisual(
   question: string,
-  answer: Pick<PaigeAnswer, "chart" | "citations">,
+  answer: Pick<PaigeAnswer, "chart">,
 ): boolean {
   if (answer.chart) return true;
-  return Boolean(
-    answer.citations.length > 0 &&
-      /\b(?:visual|visuali[sz]e|chart|graph|plot|diagram|graphic|illustration|image|picture|compare|comparison|trend)\b/i.test(
-        question,
-      ),
+  return /\b(?:visual|visuali[sz](?:e|ation)?|chart|graph|plot|diagram|graphic|illustration|image|picture|draw|sketch|render|generate)\b/i.test(
+    question,
   );
 }
 

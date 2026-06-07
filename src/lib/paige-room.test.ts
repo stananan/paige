@@ -8,7 +8,6 @@ import {
   sharedImageFileName,
   shouldGenerateVisual,
   transcriptWordCount,
-  transcriptIntent,
   type PaigeRoomEvent,
 } from "./paige-room";
 
@@ -74,44 +73,10 @@ describe("Paige room protocol", () => {
     expect(decodePaigeRoomEvent(encodePaigeRoomEvent(event))).toBeNull();
   });
 
-  test("opens a flowing session and accepts follow-ups without the wake word", () => {
-    expect(transcriptIntent("Paige", false)).toEqual({ type: "activate" });
-    expect(transcriptIntent("Paige, show Q2 revenue", false)).toEqual({
-      type: "ask",
-      command: "show Q2 revenue",
-      activate: true,
-    });
-    expect(transcriptIntent("What about ARR?", true)).toEqual({
-      type: "ask",
-      command: "What about ARR?",
-      activate: false,
-    });
-    expect(transcriptIntent("What about ARR?", false)).toEqual({ type: "ignore" });
-  });
-
-  test("ignores filler and requires three substantive words for voice follow-ups", () => {
-    expect(transcriptIntent("yeah", true)).toEqual({ type: "ignore" });
-    expect(transcriptIntent("that makes sense", true)).toEqual({ type: "ignore" });
-    expect(transcriptIntent("what about", true)).toEqual({ type: "ignore" });
-    expect(transcriptIntent("what about revenue", true)).toEqual({
-      type: "ask",
-      command: "what about revenue",
-      activate: false,
-    });
-    expect(transcriptIntent("show revenue", true, 1)).toEqual({
-      type: "ask",
-      command: "show revenue",
-      activate: false,
-    });
+  test("keeps the three-word rule only for interrupting Paige", () => {
     expect(transcriptWordCount("Paige, show Q2 revenue.")).toBe(4);
     expect(isSubstantiveTranscript("okay")).toBe(false);
     expect(isSubstantiveTranscript("hold on a second")).toBe(true);
-  });
-
-  test("recognizes natural session-ending phrases", () => {
-    expect(transcriptIntent("Thanks Paige", true)).toEqual({ type: "end" });
-    expect(transcriptIntent("That's it", true)).toEqual({ type: "end" });
-    expect(transcriptIntent("We are done Paige", true)).toEqual({ type: "end" });
   });
 
   test("keeps only the latest shared context turns", () => {
@@ -143,14 +108,18 @@ describe("Paige room protocol", () => {
     expect(
       shouldGenerateVisual("Make an image of the report", {
         chart: null,
-        citations: [{ sourceFile: "q2.pdf", page: "1" }],
       }),
     ).toBe(true);
     expect(
       shouldGenerateVisual("What did the report say?", {
         chart: null,
-        citations: [{ sourceFile: "q2.pdf", page: "1" }],
       }),
     ).toBe(false);
+    expect(shouldGenerateVisual("Draw something for this data", { chart: null })).toBe(
+      true,
+    );
+    expect(shouldGenerateVisual("Generate one for everyone", { chart: null })).toBe(
+      true,
+    );
   });
 });

@@ -11,12 +11,12 @@ export default function Home() {
         <h1 className="text-6xl font-semibold tracking-tight sm:text-7xl">Paige</h1>
 
         <p className="text-balance text-lg leading-8 text-foreground/70 sm:text-xl">
-          She sits in the room, listens the whole time, and acts when called. Say{" "}
+          She sits in the room as your live copilot. Hold Space, ask{" "}
           <span className="font-medium text-foreground">
-            &ldquo;Paige, compare our revenue the last 10 years&rdquo;
+            &ldquo;Compare our revenue the last 10 years&rdquo;
           </span>{" "}
-          — she retrieves a cited answer, speaks it, and renders an exact chart from the
-          source PDF values.
+          and release to send. She retrieves a cited answer, speaks it, and renders an exact
+          chart from the source PDF values.
         </p>
 
         <div className="flex flex-col items-center gap-3 sm:flex-row">

@@ -5,9 +5,8 @@ Context for any agent (Codex/Claude) continuing this project. Pairs with `README
 
 ## What Paige is
 A **live AI meeting copilot** built for the YC Conversational AI Hackathon (Jun 6–7 2026).
-A 3-person LiveKit room (you + a friend + Paige). Say "Paige" once to open a shared
-copilot session, continue with natural follow-ups, then say "thanks Paige" or "that's it"
-to close the session. On command she retrieves from a **Moss**
+A 3-person LiveKit room (you + a friend + Paige). Hold Space to speak to Paige, then
+release Space to transcribe and send the complete utterance. On command she retrieves from a **Moss**
 semantic index over pre-ingested company financial documents, **speaks** a one-line cited
 answer, and presents the same cited answer, exact chart, PDF preview, and optional generated
 backdrop to everyone. The answer LLM runs through TrueFoundry. Demo-first; protect the
@@ -25,18 +24,18 @@ Full approved design/plan (outside the repo): `~/.gstack/projects/paige/stanleyh
   `ControlBar`. Token minted by `/api/token` (livekit-server-sdk).
 - **Paige's voice spine (browser approach):**
   - **Ears (STT):** **Deepgram Nova-3**. Every browser segments only its local LiveKit
-    microphone track. A rolling 2.5-second PCM pre-roll preserves words spoken before
-    LiveKit's active-speaker event, then the browser sends a 16 kHz WAV utterance to
-    authenticated `/api/transcribe` and receives the speaker name from the verified LiveKit
-    token. Wake matching still accepts page/pages/padge/paij. Filler/casual fragments are
-    ignored and Paige only stops speaking after at least three substantive words.
+    microphone track. Space key-down starts an intentional utterance and key-up is the only
+    submission path; a short PCM pre-roll protects the first syllable. The browser sends a
+    16 kHz WAV utterance to authenticated `/api/transcribe` and receives the speaker name
+    from the verified LiveKit token. Holding Space while Paige speaks interrupts her after
+    at least three substantive words, but the new request is not sent until Space is released.
   - **Voice (TTS):** **MiniMax `speech-2.8-hd`, voice `English_radiant_girl`, speed `1.2`**
     via `/api/tts`. Plays MP3 in-browser. This configuration was live-verified.
-  - **Shared session:** one wake word opens a flowing conversation; follow-ups include the
-    last six turns, and natural end phrases close it for the whole room.
-  - **Chat box** in the same panel (type to Paige) — any participant can ask or end a session.
-  - LiveKit reliable data packets synchronize attributed transcripts plus question,
-    answer, and session state. Each browser plays the same MiniMax answer, so every
+  - **Conversation context:** push-to-talk and typed follow-ups include the last six turns.
+  - **Chat box** in the same panel (type to Paige) — any participant can ask. Spaces typed in
+    the input never trigger microphone capture.
+  - LiveKit reliable data packets synchronize attributed transcripts plus each question
+    and answer. Each browser plays the same MiniMax answer, so every
     participant hears Paige.
   - Conversational/filler speech does not clear the current visual or PDF. The previous
     grounded presentation remains until a different grounded answer replaces it.
@@ -101,7 +100,7 @@ src/app/api/ask/route.ts    Moss retrieval -> TrueFoundry answer + citations/cha
 src/app/api/image/route.ts  Qwen vs MiniMax image race -> winning image bytes (server)
 src/app/api/transcribe/route.ts verified LiveKit participant audio -> Deepgram Nova-3
 src/lib/paige-answer.ts     grounded answer + conversational fallback + output validation
-src/lib/paige-room.ts       shared LiveKit event protocol + session transcript parsing
+src/lib/paige-room.ts       shared LiveKit event protocol + interruption/visual helpers
 src/lib/image-race.ts       Qwen/MiniMax race and safe visual prompt builder
 src/lib/deepgram-browser.ts local LiveKit mic utterance segmentation
 src/lib/deepgram.ts         server-only Deepgram request + response validation
@@ -145,8 +144,8 @@ In `.env` (gitignored). `.env.example` documents all. Deployed ones are also on 
   `/api/transcribe`.
 
 ## How to run
-- Dev: `npm run dev` → http://localhost:3000. Open `/room` **in Chrome**, allow mic, say
-  "Paige, …" or use the chat box.
+- Dev: `npm run dev` → http://localhost:3000. Open `/room` **in Chrome**, allow mic, hold
+  Space while speaking and release to send, or use the chat box.
 - `npm run typecheck` · `npm run build`
 - Ingest one company: `bun run ingest --company=<folder>` (auto-detects when only one exists)
 - Regenerate + ingest FDC: `bun run demo:seed`
@@ -159,8 +158,8 @@ In `.env` (gitignored). `.env.example` documents all. Deployed ones are also on 
    `libstdc++` than Vercel provides, so `/api/ask` uses Moss's HTTP query API with a ranked
    `getDocs` fallback. Local ingestion continues to use the Moss SDK.
 2. **MiniMax TTS needs no GroupId** with this key. `POST api.minimax.io/v1/t2a_v2`, Bearer auth.
-3. **Deepgram may hear "Paige" as "page"** → wake matching accepts homophones. Chrome is
-   still the demo target. Browser capture uses a Web Audio PCM pre-roll and sends 16 kHz WAV.
+3. Chrome is still the demo target. Browser capture uses Web Audio PCM, sends 16 kHz WAV,
+   and only submits a voice request on Space key-up.
 4. **Don't leave test sessions in `/room`** — they appear as ghost participants. Navigate away
    to an http(s) page to disconnect (the browse tool blocks `about:blank`).
 5. **Paige is browser-side** now (not a LiveKit participant). `agent/` is the parked alternative.
@@ -188,7 +187,7 @@ In `.env` (gitignored). `.env.example` documents all. Deployed ones are also on 
 
 ## Demo target
 Two people in `/room` on webcams. Open `/demo-company` for the prepared FDC prompts, then:
-1. "Paige, what are the key statistics in our latest Q2 report?"
-2. "Paige, create a graph comparing Q2 revenue this year and last year."
+1. Hold Space: "What are the key statistics in our latest Q2 report?" Release.
+2. Hold Space: "Create a graph comparing Q2 revenue this year and last year." Release.
 Paige cites the Q2 2026 preliminary report for the summary, then renders a two-bar chart
 using Q2 2026 and Q2 2025 with clickable links to both exact PDF pages.

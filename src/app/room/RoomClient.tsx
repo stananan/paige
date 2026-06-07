@@ -90,7 +90,7 @@ export default function RoomClient() {
 }
 
 // Each browser hosts a synchronized Paige client. LiveKit data and byte streams
-// keep the answer, chart, source preview, session, and generated backdrop shared.
+// keep the answer, chart, source preview, and generated backdrop shared.
 function PaigeRoom({ liveKitToken }: { liveKitToken: string }) {
   const paige = usePaige(liveKitToken);
   const [dockOpen, setDockOpen] = useState(true);

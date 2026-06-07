@@ -1,7 +1,8 @@
 # Paige — Live AI Meeting Copilot
 
 A LiveKit meeting room for the human participants, with Paige running in a browser-side
-copilot panel. Paige listens and acts only when addressed by name ("Paige, …"). On command she
+copilot panel. Hold Space to record a request and release it to send; typed chat remains
+available and never triggers recording. On command she
 retrieves from a Moss semantic index, speaks a one-line cited answer through MiniMax Speech
 2.8 HD, and renders a generated visual from retrieved PDF values. The answer LLM runs
 through TrueFoundry. Qwen and MiniMax race for every grounded chart; exact labels and values

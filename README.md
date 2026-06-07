@@ -1,7 +1,7 @@
 # Paige
 
-**Live AI meeting copilot.** Paige joins a meeting as a third participant. Say her name
-once to start a flowing session: _"Paige, compare our revenue the last 10 years"_ →
+**Live AI meeting copilot.** Paige joins a meeting as a third participant. Hold Space,
+ask a question, then release to send: _"Compare our revenue the last 10 years"_ →
 she retrieves from a semantic index, **speaks** a one-line cited answer, and renders a
 source-grounded chart for everyone — all live.
 
@@ -9,10 +9,9 @@ Built for the **YC Conversational AI Hackathon** (Jun 6–7 2026), Co-Pilot trac
 
 ## How it works
 
-1. **Flowing session** — say "Paige" once, ask natural follow-ups, and say "thanks Paige"
-   to return to the meeting. A short microphone pre-roll keeps Deepgram from clipping the
-   opening words; every participant is transcribed separately, and three substantive words
-   interrupt Paige while filler sounds are ignored.
+1. **Push-to-talk** — hold Space while speaking and release to send the complete utterance.
+   A short microphone pre-roll keeps Deepgram from clipping the opening words; every
+   participant is transcribed separately, and typed spaces never activate recording.
 2. **Shared grounded response** — every participant sees and hears the same spoken takeaway,
    cited card, generated visual, and PDF page preview inside Paige's equal-sized tile.
 3. **Safe generated visuals** — Qwen/MiniMax supplies the visible presentation image while
@@ -54,11 +53,11 @@ Smoke-test Qwen image generation (writes to ignored `data/.qwen-test/`):
 - [x] **1–3 Real 3-person room** — token route + LiveKit room (video grid + ControlBar) wired & verified. Real two-tab webcam test pending on hardware.
 - [x] **3–6 Paige's voice spine** — ✅ each participant's LiveKit mic is segmented locally, transcribed by Deepgram Nova-3 through authenticated `/api/transcribe`, and attributed by LiveKit identity; MiniMax TTS remains `/api/tts`
 - [x] **6–9 Ingest pipeline** — `bun run ingest`: /data → Unsiloed parse with cached results → page-preserving chunks → synchronized Moss index + live citation query verification
-- [x] **9–13 Fast beat (hero)** — wake cmd → Moss retrieve → GPT-5.4 Mini (TrueFoundry) → spoken answer + cited card + deterministic chart; production verified
+- [x] **9–13 Fast beat (hero)** — push-to-talk → Moss retrieve → GPT-5.4 Mini (TrueFoundry) → spoken answer + cited card + deterministic chart; production verified
 - [x] **Demo workspace + corpus** — `/demo-company` lists 15 downloadable FDC PDFs, including Q1-Q4 2025, Q1-Q2 2026, and estimated Q3 2026 results; the live Moss index contains 44 page-cited documents and ten prepared prompts
 - [x] **Paige presence + general chat** — Paige remains the same size as every webcam tile and renders cited answers/charts inside her tile. The text dock can be closed and reopened. Obvious conversational prompts bypass Moss; ambiguous business prompts still retrieve.
 - [x] **13–16 Citations + chart polish** — every evidence chip opens the exact public PDF page; charts render and are value-grounded across one or more cited source PDFs
-- [x] **Shared meeting experience** — LiveKit reliable packets synchronize attributed transcripts, Paige sessions, answers, PDF previews, and image streams; every browser plays MiniMax TTS
+- [x] **Shared meeting experience** — LiveKit reliable packets synchronize attributed transcripts, answers, PDF previews, and image streams; every browser plays MiniMax TTS
 - [x] **16–19 Image presentation** — Qwen vs MiniMax returns a binary image shown to everyone; exact values remain source-grounded HTML overlays and the SVG is failure-only
 - [ ] **19–21 Stretch: live upload** — one "upload a doc" → live Unsiloed parse → answerable
 - [ ] **21–23 Rehearse + harden** — run the full demo twice; prep a recorded fallback clip

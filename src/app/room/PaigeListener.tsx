@@ -8,7 +8,6 @@ import {
   ConnectionState,
   RoomEvent,
   Track,
-  type Participant,
 } from "livekit-client";
 import {
   type FormEvent,
@@ -37,16 +36,15 @@ import {
   PAIGE_IMAGE_TOPIC,
   sharedImageFileName,
   shouldGenerateVisual,
-  transcriptIntent,
   type PaigeRoomEvent,
 } from "@/lib/paige-room";
 
 export interface PaigeState {
   supported: boolean;
   listening: boolean;
+  recording: boolean;
   thinking: boolean;
   speaking: boolean;
-  sessionActive: boolean;
   heard: string;
   heardBy: string;
   reply: PaigeAnswer | null;
@@ -67,6 +65,24 @@ export interface PaigeState {
 
 function isGrounded(reply: PaigeAnswer | null): boolean {
   return Boolean(reply && (reply.citations.length > 0 || reply.chart));
+}
+
+function isTextEntryKeyboardTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return false;
+  const element = target.closest(
+    'input, textarea, select, [contenteditable="true"], [role="textbox"]',
+  );
+  if (!(element instanceof HTMLInputElement)) return element !== null;
+  return ![
+    "button",
+    "checkbox",
+    "color",
+    "file",
+    "radio",
+    "range",
+    "reset",
+    "submit",
+  ].includes(element.type);
 }
 
 function spokenAnswer(answer: PaigeAnswer, visualRequested: boolean): string {
@@ -101,11 +117,11 @@ export function usePaige(liveKitToken: string): PaigeState {
   const [listening, setListening] = useState(() =>
     supportsParticipantTranscription(),
   );
+  const [recording, setRecording] = useState(false);
   const [heard, setHeard] = useState("");
   const [heardBy, setHeardBy] = useState("");
   const [reply, setReply] = useState<PaigeAnswer | null>(null);
   const [speaking, setSpeaking] = useState(false);
-  const [sessionActive, setSessionActive] = useState(false);
   const [visualUrl, setVisualUrl] = useState("");
   const [visualModel, setVisualModel] = useState("");
   const [visualLoading, setVisualLoading] = useState(false);
@@ -123,8 +139,7 @@ export function usePaige(liveKitToken: string): PaigeState {
   const speechAbortRef = useRef<AbortController | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const finishSpeechRef = useRef<(() => void) | null>(null);
-  const sessionActiveRef = useRef(false);
-  const sessionUpdatedAtRef = useRef(0);
+  const pushToTalkHeldRef = useRef(false);
   const currentInteractionIdRef = useRef("");
   const interactionUpdatedAtRef = useRef(0);
   const presentationInteractionIdRef = useRef("");
@@ -281,35 +296,6 @@ export function usePaige(liveKitToken: string): PaigeState {
     [room],
   );
 
-  const applySession = useCallback(
-    (active: boolean, at: number) => {
-      if (at < sessionUpdatedAtRef.current) return;
-      sessionUpdatedAtRef.current = at;
-      sessionActiveRef.current = active;
-      setSessionActive(active);
-      if (!active) {
-        requestRef.current?.abort();
-        requestRef.current = null;
-        stopSpeech();
-        setThinking(false);
-      }
-    },
-    [stopSpeech],
-  );
-
-  const setSharedSession = useCallback(
-    (active: boolean) => {
-      const event: PaigeRoomEvent = {
-        ...eventBase(),
-        type: "session",
-        active,
-      };
-      applySession(active, event.at);
-      void publishEvent(event);
-    },
-    [applySession, eventBase, publishEvent],
-  );
-
   const applyThinking = useCallback(
     (
       interactionId: string,
@@ -350,9 +336,9 @@ export function usePaige(liveKitToken: string): PaigeState {
         question,
         answer: answer.answer,
       });
-      const replacePresentation =
-        isGrounded(answer) || !isGrounded(replyRef.current);
       const visualRequested = shouldGenerateVisual(question, answer);
+      const replacePresentation =
+        visualRequested || isGrounded(answer) || !isGrounded(replyRef.current);
 
       if (replacePresentation) {
         if (presentationInteractionIdRef.current !== interactionId) {
@@ -445,7 +431,6 @@ export function usePaige(liveKitToken: string): PaigeState {
       const q = command.trim();
       if (!q) return;
 
-      if (!sessionActiveRef.current) setSharedSession(true);
       requestRef.current?.abort();
       const interactionId = crypto.randomUUID();
       const thinkingEvent: PaigeRoomEvent = {
@@ -454,7 +439,7 @@ export function usePaige(liveKitToken: string): PaigeState {
         interactionId,
         question: q,
         speaker,
-        sessionActive: true,
+        sessionActive: false,
       };
       applyThinking(interactionId, q, speaker, thinkingEvent.at, false);
       void publishEvent(thinkingEvent);
@@ -481,7 +466,7 @@ export function usePaige(liveKitToken: string): PaigeState {
           question: q,
           speaker,
           answer: body,
-          sessionActive: sessionActiveRef.current,
+          sessionActive: false,
         };
         applyAnswer(interactionId, q, speaker, body, answerEvent.at);
         void publishEvent(answerEvent);
@@ -511,56 +496,25 @@ export function usePaige(liveKitToken: string): PaigeState {
       generateSharedVisual,
       localIdentity,
       publishEvent,
-      setSharedSession,
     ],
   );
 
   const handleTranscript = useCallback(
-    (transcript: string, speaker: string, words: number) => {
-      setHeard(transcript);
+    (transcript: string, speaker: string) => {
+      const command = transcript.trim();
+      if (!command) return;
+      setHeard(command);
       setHeardBy(speaker);
       void publishEvent({
         ...eventBase(),
         type: "transcript",
         speaker,
-        text: transcript,
+        text: command,
       });
-
-      if (
-        words >= 3 &&
-        isSubstantiveTranscript(transcript) &&
-        speakingRef.current
-      ) {
-        stopSpeech();
-        void publishEvent({
-          ...eventBase(),
-          type: "interrupt",
-          interactionId: currentInteractionIdRef.current || undefined,
-        });
-      }
-
-      const intent = transcriptIntent(transcript, sessionActiveRef.current);
-      if (intent.type === "end") {
-        setSharedSession(false);
-        return;
-      }
-      if (intent.type === "activate") {
-        setSharedSession(true);
-        return;
-      }
-      if (intent.type === "ask") {
-        if (intent.activate) setSharedSession(true);
-        stopSpeech();
-        void ask(intent.command, speaker);
-      }
+      stopSpeech();
+      void ask(command, speaker);
     },
-    [
-      ask,
-      eventBase,
-      publishEvent,
-      setSharedSession,
-      stopSpeech,
-    ],
+    [ask, eventBase, publishEvent, stopSpeech],
   );
 
   const handleInterruptionCandidate = useCallback(
@@ -584,7 +538,7 @@ export function usePaige(liveKitToken: string): PaigeState {
 
   useEffect(() => {
     transcriptHandlerRef.current = (result) => {
-      handleTranscript(result.transcript, result.speaker, result.words);
+      handleTranscript(result.transcript, result.speaker);
     };
     return () => {
       transcriptHandlerRef.current = () => {};
@@ -622,18 +576,66 @@ export function usePaige(liveKitToken: string): PaigeState {
   ]);
 
   useEffect(() => {
-    const handleActiveSpeakers = (speakers: Participant[]) => {
-      const localSpeaking = speakers.some(
-        (participant) =>
-          participant.identity === room.localParticipant.identity,
-      );
-      transcriberRef.current?.setSpeaking(localSpeaking);
+    if (!supported || !listening) return;
+
+    const cancelRecording = () => {
+      if (!pushToTalkHeldRef.current) return;
+      pushToTalkHeldRef.current = false;
+      setRecording(false);
+      transcriberRef.current?.cancelPushToTalk();
     };
-    room.on(RoomEvent.ActiveSpeakersChanged, handleActiveSpeakers);
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (
+        event.code !== "Space" ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.altKey
+      ) {
+        return;
+      }
+      if (pushToTalkHeldRef.current) {
+        event.preventDefault();
+        return;
+      }
+      if (event.repeat || isTextEntryKeyboardTarget(event.target)) return;
+
+      event.preventDefault();
+      pushToTalkHeldRef.current = true;
+      setRecording(true);
+      const interrupted = speakingRef.current;
+      stopSpeech();
+      if (interrupted) {
+        void publishEvent({
+          ...eventBase(),
+          type: "interrupt",
+          interactionId: currentInteractionIdRef.current || undefined,
+        });
+      }
+      transcriberRef.current?.beginPushToTalk();
+    };
+    const handleKeyUp = (event: KeyboardEvent) => {
+      if (event.code !== "Space" || !pushToTalkHeldRef.current) return;
+      event.preventDefault();
+      pushToTalkHeldRef.current = false;
+      setRecording(false);
+      transcriberRef.current?.endPushToTalk();
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") cancelRecording();
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+    window.addEventListener("blur", cancelRecording);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => {
-      room.off(RoomEvent.ActiveSpeakersChanged, handleActiveSpeakers);
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+      window.removeEventListener("blur", cancelRecording);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      cancelRecording();
     };
-  }, [room]);
+  }, [eventBase, listening, publishEvent, stopSpeech, supported]);
 
   useEffect(() => {
     room.registerByteStreamHandler(
@@ -677,7 +679,6 @@ export function usePaige(liveKitToken: string): PaigeState {
     }
 
     if (event.type === "session") {
-      applySession(event.active, event.at);
       return;
     }
     if (event.type === "transcript") {
@@ -686,7 +687,6 @@ export function usePaige(liveKitToken: string): PaigeState {
       return;
     }
     if (event.type === "thinking") {
-      applySession(event.sessionActive, event.at);
       applyThinking(
         event.interactionId,
         event.question,
@@ -696,7 +696,6 @@ export function usePaige(liveKitToken: string): PaigeState {
       return;
     }
     if (event.type === "answer") {
-      applySession(event.sessionActive, event.at);
       applyAnswer(
         event.interactionId,
         event.question,
@@ -730,7 +729,6 @@ export function usePaige(liveKitToken: string): PaigeState {
     }
     if (event.type === "snapshot") {
       if (event.updatedAt < interactionUpdatedAtRef.current) return;
-      applySession(event.sessionActive, event.at);
       interactionUpdatedAtRef.current = Math.max(
         interactionUpdatedAtRef.current,
         event.updatedAt,
@@ -767,7 +765,7 @@ export function usePaige(liveKitToken: string): PaigeState {
       const snapshot: PaigeRoomEvent = {
         ...eventBase(),
         type: "snapshot",
-        sessionActive: sessionActiveRef.current,
+        sessionActive: false,
         currentInteractionId: presentationInteractionIdRef.current,
         question: presentationQuestionRef.current,
         answer: replyRef.current,
@@ -797,7 +795,6 @@ export function usePaige(liveKitToken: string): PaigeState {
     }
   }, [
     applyAnswer,
-    applySession,
     applyThinking,
     eventBase,
     publishEvent,
@@ -844,6 +841,8 @@ export function usePaige(liveKitToken: string): PaigeState {
 
   const toggle = useCallback(() => {
     if (listening) {
+      pushToTalkHeldRef.current = false;
+      setRecording(false);
       transcriberRef.current?.setEnabled(false);
       setListening(false);
     } else {
@@ -860,20 +859,9 @@ export function usePaige(liveKitToken: string): PaigeState {
       setHeard(q);
       setHeardBy(room.localParticipant.identity);
       setInput("");
-      const intent = transcriptIntent(q, true, 1);
-      if (intent.type === "end") {
-        setSharedSession(false);
-        return;
-      }
-      if (intent.type === "activate") {
-        setSharedSession(true);
-        return;
-      }
-      if (intent.type !== "ask") return;
-      if (!sessionActiveRef.current) setSharedSession(true);
-      void ask(intent.command, room.localParticipant.identity);
+      void ask(q, room.localParticipant.identity);
     },
-    [input, ask, room, setSharedSession],
+    [input, ask, room],
   );
 
   const dismiss = useCallback(() => {
@@ -884,14 +872,17 @@ export function usePaige(liveKitToken: string): PaigeState {
   return {
     supported,
     listening,
+    recording,
     thinking,
     speaking,
-    sessionActive,
     heard,
     heardBy,
     reply,
     error,
-    presenting: isGrounded(reply),
+    presenting: Boolean(
+      reply &&
+        (isGrounded(reply) || visualLoading || visualUrl || visualFailed),
+    ),
     visualUrl,
     visualModel,
     visualLoading,
@@ -906,13 +897,15 @@ export function usePaige(liveKitToken: string): PaigeState {
 }
 
 function statusLabel(paige: PaigeState): string {
+  if (paige.recording) return "Recording";
   if (paige.speaking) return "Speaking";
   if (paige.thinking) return "Searching";
-  if (paige.listening) return "Listening";
+  if (paige.listening) return "Space to talk";
   return "Idle";
 }
 
 function statusColor(paige: PaigeState): string {
+  if (paige.recording) return "bg-red-400";
   if (paige.speaking) return "bg-emerald-400";
   if (paige.thinking) return "bg-amber-300";
   if (paige.listening) return "bg-sky-400";
@@ -932,7 +925,8 @@ function pdfPreviewUrl(url: string, page = "1"): string {
 // Paige stays the same size as every webcam tile. Grounded answers render inside
 // her tile, so presenting data never takes over the room or enlarges her window.
 export function PaigeTile({ paige, compact = false }: { paige: PaigeState; compact?: boolean }) {
-  const active = paige.speaking || paige.thinking || paige.listening;
+  const active =
+    paige.recording || paige.speaking || paige.thinking || paige.listening;
   const conversational = paige.reply && !paige.presenting ? paige.reply.answer : "";
 
   if (!compact && paige.reply && paige.presenting) {
@@ -958,7 +952,10 @@ export function PaigeTile({ paige, compact = false }: { paige: PaigeState; compa
           <p className="text-sm font-semibold leading-snug text-emerald-100">
             {paige.reply.answer}
           </p>
-          {paige.reply.chart && (
+          {(paige.reply.chart ||
+            paige.visualLoading ||
+            paige.visualUrl ||
+            paige.visualFailed) && (
             <AnswerVisual
               chart={paige.reply.chart}
               visualUrl={paige.visualUrl}
@@ -1067,10 +1064,10 @@ export function PaigeTile({ paige, compact = false }: { paige: PaigeState; compa
   );
 }
 
-// Dismissible control surface: mic toggle, what Paige heard, the type-to-Paige
-// box, and any error. Closing it does not disable wake-word listening.
+// Dismissible control surface: push-to-talk toggle, transcript, typed chat, and errors.
 export function PaigeDock({ paige, onClose }: { paige: PaigeState; onClose: () => void }) {
-  const active = paige.speaking || paige.thinking || paige.listening;
+  const active =
+    paige.recording || paige.speaking || paige.thinking || paige.listening;
   return (
     <div className="pointer-events-auto absolute bottom-20 right-4 z-20 w-[min(22rem,calc(100vw-2rem))] rounded-2xl border border-white/10 bg-black/75 p-3 text-white shadow-2xl backdrop-blur">
       <div className="flex items-center justify-between">
@@ -1102,9 +1099,9 @@ export function PaigeDock({ paige, onClose }: { paige: PaigeState; onClose: () =
 
       <p className="mt-2 text-[11px] text-white/45">
         {paige.supported
-          ? paige.sessionActive
-            ? "Paige session active · keep talking naturally · say “thanks Paige” to end"
-            : "Say “Paige” once to start a conversation, or type below"
+          ? paige.recording
+            ? "Recording · release Space to send"
+            : "Hold Space to talk · release to send · or type below"
           : "Voice needs Chrome · type below"}
       </p>
       {paige.heard && (
@@ -1145,18 +1142,19 @@ export function AnswerVisual({
   visualLoading = false,
   visualFailed = false,
 }: {
-  chart: PaigeChart;
+  chart: PaigeChart | null;
   visualUrl?: string;
   visualModel?: string;
   visualLoading?: boolean;
   visualFailed?: boolean;
 }) {
   if (visualUrl) {
-    const maxValue = Math.max(...chart.values, 0);
-    const minValue = Math.min(...chart.values, 0);
+    const values = chart?.values ?? [];
+    const maxValue = Math.max(...values, 0);
+    const minValue = Math.min(...values, 0);
     const range = maxValue - minValue || 1;
     const zeroFromTop = (maxValue / range) * 100;
-    const columnCount = Math.max(1, chart.values.length);
+    const columnCount = Math.max(1, values.length);
 
     return (
       <figure className="relative min-h-56 overflow-hidden rounded-xl border border-white/10 bg-[#07111e]">
@@ -1166,78 +1164,86 @@ export function AnswerVisual({
         <img
           src={visualUrl}
           alt=""
-          className="absolute inset-0 h-full w-full scale-105 object-cover blur-[6px] brightness-75 saturate-125"
+          className={`absolute inset-0 h-full w-full scale-105 object-cover brightness-75 saturate-125 ${
+            chart ? "blur-[6px]" : "blur-[2px]"
+          }`}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-[#050a12] via-[#050a12]/25 to-transparent" />
         <figcaption className="relative flex min-h-56 flex-col justify-end p-3">
-          <div className="rounded-xl border border-white/15 bg-black/65 p-3 backdrop-blur">
-            <p className="text-xs font-semibold text-white">{chart.title}</p>
-            <p className="mt-0.5 text-[9px] text-white/55">
-              {chart.unit} · Exact values from cited PDFs
-            </p>
-            <div className="relative mt-3 h-24">
-              <span
-                className="absolute inset-x-0 border-t border-white/25"
-                style={{ top: `${zeroFromTop}%` }}
-              />
+          {chart ? (
+            <div className="rounded-xl border border-white/15 bg-black/65 p-3 backdrop-blur">
+              <p className="text-xs font-semibold text-white">{chart.title}</p>
+              <p className="mt-0.5 text-[9px] text-white/55">
+                {chart.unit} · Exact values from cited PDFs
+              </p>
+              <div className="relative mt-3 h-24">
+                <span
+                  className="absolute inset-x-0 border-t border-white/25"
+                  style={{ top: `${zeroFromTop}%` }}
+                />
+                <div
+                  className="absolute inset-0 grid gap-2"
+                  style={{
+                    gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))`,
+                  }}
+                >
+                  {chart.values.map((value, index) => {
+                    const height = Math.max(3, (Math.abs(value) / range) * 100);
+                    const top =
+                      value >= 0
+                        ? ((maxValue - value) / range) * 100
+                        : zeroFromTop;
+                    return (
+                      <div
+                        key={`${chart.labels[index]}-${index}`}
+                        className="relative"
+                        title={`${chart.labels[index]}: ${value.toLocaleString()} ${chart.unit}`}
+                      >
+                        <span
+                          className={`absolute inset-x-[18%] rounded-t-sm ${
+                            value >= 0
+                              ? "bg-gradient-to-t from-emerald-500 to-sky-300"
+                              : "bg-gradient-to-b from-amber-300 to-rose-500"
+                          }`}
+                          style={{ top: `${top}%`, height: `${height}%` }}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
               <div
-                className="absolute inset-0 grid gap-2"
+                className="mt-1 grid gap-2"
                 style={{
                   gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))`,
                 }}
               >
-                {chart.values.map((value, index) => {
-                  const height = Math.max(3, (Math.abs(value) / range) * 100);
-                  const top =
-                    value >= 0
-                      ? ((maxValue - value) / range) * 100
-                      : zeroFromTop;
-                  return (
-                    <div
-                      key={`${chart.labels[index]}-${index}`}
-                      className="relative"
-                      title={`${chart.labels[index]}: ${value.toLocaleString()} ${chart.unit}`}
-                    >
-                      <span
-                        className={`absolute inset-x-[18%] rounded-t-sm ${
-                          value >= 0
-                            ? "bg-gradient-to-t from-emerald-500 to-sky-300"
-                            : "bg-gradient-to-b from-amber-300 to-rose-500"
-                        }`}
-                        style={{ top: `${top}%`, height: `${height}%` }}
-                      />
-                    </div>
-                  );
-                })}
+                {chart.values.map((value, index) => (
+                  <div
+                    key={`${chart.labels[index]}-${index}`}
+                    className="min-w-0 text-center"
+                  >
+                    <p className="truncate text-[8px] text-white/60">
+                      {chart.labels[index]}
+                    </p>
+                    <p className="text-[10px] font-semibold text-emerald-100">
+                      {value.toLocaleString()}{" "}
+                      <span className="text-[8px] font-normal text-emerald-100/60">
+                        {chart.unit}
+                      </span>
+                    </p>
+                  </div>
+                ))}
               </div>
+              <p className="mt-2 text-[8px] text-sky-100/45">
+                Visual by {visualModel || "AI"} · values overlaid from sources
+              </p>
             </div>
-            <div
-              className="mt-1 grid gap-2"
-              style={{
-                gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))`,
-              }}
-            >
-              {chart.values.map((value, index) => (
-                <div
-                  key={`${chart.labels[index]}-${index}`}
-                  className="min-w-0 text-center"
-                >
-                  <p className="truncate text-[8px] text-white/60">
-                    {chart.labels[index]}
-                  </p>
-                  <p className="text-[10px] font-semibold text-emerald-100">
-                    {value.toLocaleString()}{" "}
-                    <span className="text-[8px] font-normal text-emerald-100/60">
-                      {chart.unit}
-                    </span>
-                  </p>
-                </div>
-              ))}
+          ) : (
+            <div className="self-start rounded-lg border border-white/15 bg-black/60 px-2.5 py-1.5 text-[9px] text-white/70 backdrop-blur">
+              Generated visual by {visualModel || "AI"}
             </div>
-            <p className="mt-2 text-[8px] text-sky-100/45">
-              Visual by {visualModel || "AI"} · values overlaid from sources
-            </p>
-          </div>
+          )}
         </figcaption>
       </figure>
     );
@@ -1251,14 +1257,24 @@ export function AnswerVisual({
           I have the data. Give me a second to finish the visual.
         </p>
         <p className="mt-1 text-[9px] text-white/40">
-          The cited PDF values will stay overlaid on the generated image.
+          {chart
+            ? "The cited PDF values will stay overlaid on the generated image."
+            : "Qwen and MiniMax are generating the visual now."}
         </p>
       </figure>
     );
   }
 
+  if (!chart) {
+    return (
+      <p className="rounded-xl border border-amber-300/20 bg-amber-300/10 p-3 text-xs text-amber-100">
+        AI visual generation failed. The cited answer is still available below.
+      </p>
+    );
+  }
+
   // Keep the deterministic SVG available only when every image provider fails.
-  return <AnswerChartFallback chart={chart} failed={visualFailed} />;
+  return <AnswerChartFallback chart={chart} failed />;
 }
 
 function AnswerChartFallback({

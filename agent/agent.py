@@ -19,28 +19,19 @@ logger = logging.getLogger("paige")
 # Share the Next.js app's .env (LIVEKIT_*, DEEPGRAM_API_KEY, MINIMAX_API_KEY).
 load_dotenv(os.path.join(os.path.dirname(__file__), os.pardir, ".env"))
 
-WAKE_WORD = "paige"
-
-
 class Paige(Agent):
-    """Addressed activation: Paige hears everything but only *acts* when called
-    by name ("Paige, ..."). This kills the 'agent talks over you' failure mode
-    and keeps the demo controllable on stage."""
+    """Parked real-participant prototype for finalized user turns."""
 
     def __init__(self) -> None:
         super().__init__(
             instructions=(
-                "You are Paige, a live meeting copilot. You only respond when "
-                "addressed by name. Keep spoken replies to one short sentence."
+                "You are Paige, a live meeting copilot. "
+                "Keep spoken replies to one short sentence."
             ),
         )
 
     async def on_user_turn_completed(self, turn_ctx, new_message) -> None:
-        said = (getattr(new_message, "text_content", "") or "").lower()
-        if WAKE_WORD not in said:
-            raise StopResponse()  # not addressed -> stay silent
-
-        # Task #2: prove the STT -> wake-word -> TTS round-trip with a fixed reply.
+        # Task #2: prove the STT -> TTS round-trip with a fixed reply.
         # The fast beat (task #4) swaps this for: Moss retrieve -> LLM (TrueFoundry)
         # -> spoken cited answer + a chart pushed over a LiveKit data channel.
         await self.session.say("Hi, I'm Paige. I'm listening.")

@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Paige — Live AI Meeting Copilot",
   description:
-    "Paige sits in your meeting, listens the whole time, and acts on command — retrieving cited answers from your documents and generating visuals, live.",
+    "Hold Space to ask Paige for cited answers and generated visuals from your company documents, live in the meeting.",
 };
 
 export default function RootLayout({

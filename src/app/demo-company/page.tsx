@@ -78,7 +78,7 @@ export default function DemoCompanyPage() {
                 Ask the company, not the folder.
               </h2>
               <p className="mt-3 max-w-md leading-7 text-[#173f33]/70">
-                Open the meeting room, say “Paige,” and ask one of these. She speaks a cited answer,
+                Open the meeting room, hold Space, and ask one of these. Release to send; she speaks a cited answer,
                 then renders an exact chart directly from the retrieved PDF values when the question
                 asks for a comparison.
               </p>

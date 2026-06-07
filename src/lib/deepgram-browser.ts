@@ -15,9 +15,7 @@ interface ParticipantTranscriberOptions {
   onError: (message: string) => void;
 }
 
-const SILENCE_GRACE_MS = 900;
-const MAX_UTTERANCE_MS = 45_000;
-const PRE_ROLL_MS = 2_500;
+const PRE_ROLL_MS = 350;
 const CAPTURE_RETRY_MS = 250;
 const FIRST_INTERRUPT_PROBE_MS = 1_200;
 const NEXT_INTERRUPT_PROBE_MS = 900;
@@ -136,15 +134,13 @@ export class DeepgramParticipantTranscriber {
   private utteranceChunks: Float32Array[] = [];
   private utteranceSamples = 0;
   private utteranceActive = false;
-  private stopTimer: number | null = null;
-  private maxTimer: number | null = null;
   private probeTimer: number | null = null;
   private captureRetryTimer: number | null = null;
   private probeInFlight = false;
   private interruptionDetected = false;
   private enabled = true;
   private disposed = false;
-  private locallySpeaking = false;
+  private pushToTalkActive = false;
   private submissions = Promise.resolve();
 
   constructor(options: ParticipantTranscriberOptions) {
@@ -155,32 +151,34 @@ export class DeepgramParticipantTranscriber {
   setEnabled(enabled: boolean) {
     this.enabled = enabled;
     if (!enabled) {
-      this.finishUtterance();
+      this.cancelPushToTalk();
       this.teardownCapture();
       return;
     }
     this.ensureCapture();
   }
 
-  setSpeaking(speaking: boolean) {
-    this.locallySpeaking = speaking;
-    if (!this.enabled || this.disposed) return;
-    if (speaking) {
-      this.clearStopTimer();
-      this.ensureCapture();
-      this.startUtterance();
-      return;
-    }
-    if (!this.utteranceActive || this.stopTimer !== null) return;
-    this.stopTimer = window.setTimeout(
-      () => this.finishUtterance(),
-      SILENCE_GRACE_MS,
-    );
+  beginPushToTalk() {
+    if (!this.enabled || this.disposed || this.pushToTalkActive) return;
+    this.pushToTalkActive = true;
+    this.ensureCapture();
+    this.startUtterance();
+  }
+
+  endPushToTalk() {
+    if (!this.pushToTalkActive) return;
+    this.pushToTalkActive = false;
+    this.finishUtterance(true);
+  }
+
+  cancelPushToTalk() {
+    this.pushToTalkActive = false;
+    this.finishUtterance(false);
   }
 
   dispose() {
     this.disposed = true;
-    this.finishUtterance(false);
+    this.cancelPushToTalk();
     this.teardownCapture();
   }
 
@@ -242,7 +240,7 @@ export class DeepgramParticipantTranscriber {
       void context.resume().catch(() => {
         // Browsers may briefly suspend audio until the room receives a gesture.
       });
-      if (this.locallySpeaking) this.startUtterance();
+      if (this.pushToTalkActive) this.startUtterance();
     } catch {
       this.teardownCapture();
       this.options.onError("Deepgram microphone capture failed.");
@@ -295,10 +293,6 @@ export class DeepgramParticipantTranscriber {
     this.preRollSamples = 0;
     this.utteranceActive = true;
     this.interruptionDetected = false;
-    this.maxTimer = window.setTimeout(
-      () => this.finishUtterance(),
-      MAX_UTTERANCE_MS,
-    );
     this.scheduleInterruptProbe(FIRST_INTERRUPT_PROBE_MS);
   }
 
@@ -316,9 +310,6 @@ export class DeepgramParticipantTranscriber {
         this.audioContext?.sampleRate ?? 48_000,
       );
       this.enqueueTranscription(new Blob([wav], { type: "audio/wav" }));
-    }
-    if (this.locallySpeaking && this.enabled && !this.disposed) {
-      this.startUtterance();
     }
   }
 
@@ -371,7 +362,7 @@ export class DeepgramParticipantTranscriber {
     if (
       this.disposed ||
       !this.enabled ||
-      !this.locallySpeaking ||
+      !this.pushToTalkActive ||
       this.probeInFlight ||
       this.utteranceSamples === 0 ||
       this.interruptionDetected
@@ -397,7 +388,7 @@ export class DeepgramParticipantTranscriber {
     } finally {
       this.probeInFlight = false;
       if (
-        this.locallySpeaking &&
+        this.pushToTalkActive &&
         !this.interruptionDetected &&
         !this.disposed
       ) {
@@ -424,15 +415,7 @@ export class DeepgramParticipantTranscriber {
     return result;
   }
 
-  private clearStopTimer() {
-    if (this.stopTimer !== null) window.clearTimeout(this.stopTimer);
-    this.stopTimer = null;
-  }
-
   private clearTimers() {
-    this.clearStopTimer();
-    if (this.maxTimer !== null) window.clearTimeout(this.maxTimer);
-    this.maxTimer = null;
     if (this.probeTimer !== null) window.clearTimeout(this.probeTimer);
     this.probeTimer = null;
   }
