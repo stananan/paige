@@ -100,10 +100,10 @@ In `.env` (gitignored). `.env.example` documents all. Deployed ones are also on 
 - Parked agent: `cd agent && uv sync && uv run agent.py dev` (needs `DEEPGRAM_API_KEY`)
 
 ## Gotchas / decisions (will save you time)
-1. **Vercel + lockfile:** Vercel's builder runs an older npm that throws
-   `npm error Invalid Version` on our npm-11 `package-lock.json`. `.vercelignore` excludes
-   `package-lock.json` so Vercel resolves fresh from `package.json`. **Keep that line.**
-   (Proper fix: set the Vercel project's Node version to 24, then restore the lockfile.)
+1. **Vercel + Moss native binding:** keep the Node 24 `package-lock.json` in deployments and
+   keep `@moss-dev/moss-core-linux-x64-gnu` as an explicit optional dependency. Omitting the
+   lockfile can trigger npm's optional-dependency bug and leave the Vercel function without
+   Moss's Linux N-API binary.
 2. **MiniMax TTS needs no GroupId** with this key. `POST api.minimax.io/v1/t2a_v2`, Bearer auth.
 3. **Web Speech hears "Paige" as "page"** → wake matching accepts homophones. **Chrome only.**
 4. **Don't leave test sessions in `/room`** — they appear as ghost participants. Navigate away

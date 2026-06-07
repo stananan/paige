@@ -4,7 +4,3 @@
 data/
 .claude/
 agent/
-
-# Vercel's builder runs an older npm that can't parse this npm-11 lockfile
-# ("npm error Invalid Version"). Omit it so Vercel resolves fresh from package.json.
-package-lock.json
