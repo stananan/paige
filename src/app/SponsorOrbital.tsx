@@ -93,7 +93,7 @@ const SPONSORS: OrbitalItem[] = [
 
 export default function SponsorOrbital() {
   return (
-    <section className="relative z-20 -mt-[42vh] h-screen w-full overflow-hidden bg-background">
+    <section className="relative z-20 -mt-[42vh] h-screen w-full overflow-hidden">
       {/* Soft blue glow behind the wheel, matching the hero */}
       <div
         className="pointer-events-none absolute left-1/2 top-1/2 h-[70vh] w-[70vh] -translate-x-1/2 -translate-y-1/2 rounded-full"
