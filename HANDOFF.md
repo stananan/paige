@@ -25,10 +25,11 @@ Full approved design/plan (outside the repo): `~/.gstack/projects/paige/stanleyh
   `ControlBar`. Token minted by `/api/token` (livekit-server-sdk).
 - **Paige's voice spine (browser approach):**
   - **Ears (STT):** **Deepgram Nova-3**. Every browser segments only its local LiveKit
-    microphone track, sends the utterance to authenticated `/api/transcribe`, and receives
-    the speaker name from the verified LiveKit token. Wake matching still accepts
-    page/pages/padge/paij. Filler/casual fragments are ignored and Paige only stops speaking
-    after at least three substantive words.
+    microphone track. A rolling 2.5-second PCM pre-roll preserves words spoken before
+    LiveKit's active-speaker event, then the browser sends a 16 kHz WAV utterance to
+    authenticated `/api/transcribe` and receives the speaker name from the verified LiveKit
+    token. Wake matching still accepts page/pages/padge/paij. Filler/casual fragments are
+    ignored and Paige only stops speaking after at least three substantive words.
   - **Voice (TTS):** **MiniMax `speech-2.8-hd`, voice `English_radiant_girl`, speed `1.2`**
     via `/api/tts`. Plays MP3 in-browser. This configuration was live-verified.
   - **Shared session:** one wake word opens a flowing conversation; follow-ups include the
@@ -66,8 +67,9 @@ Full approved design/plan (outside the repo): `~/.gstack/projects/paige/stanleyh
   the unit (e.g. "USD millions") is matched against the whole cited document, not beside
   every cell, so values pulled from tables/headers pass. Same relaxation applied to the
   spoken-answer number check so a table-only value no longer hard-fails the request.
-- **Task #6 — Qwen vs MiniMax image race: COMPLETE WITH A SAFETY BOUNDARY.** Explicit
-  chart/visual prompts race both providers through `src/lib/image-race.ts`. The winner is
+- **Task #6 — Qwen vs MiniMax image race: COMPLETE WITH A SAFETY BOUNDARY.** Every grounded
+  chart races both providers through `src/lib/image-race.ts`; explicit image requests with
+  cited evidence do too. The winner is
   returned as binary image data, shared to every participant, blurred to make provider-made
   text unreadable, and covered with exact source-grounded HTML values. The deterministic SVG
   is retained only if all image providers fail.
@@ -158,11 +160,11 @@ In `.env` (gitignored). `.env.example` documents all. Deployed ones are also on 
    `getDocs` fallback. Local ingestion continues to use the Moss SDK.
 2. **MiniMax TTS needs no GroupId** with this key. `POST api.minimax.io/v1/t2a_v2`, Bearer auth.
 3. **Deepgram may hear "Paige" as "page"** → wake matching accepts homophones. Chrome is
-   still the demo target because the mic capture path uses `MediaRecorder`.
+   still the demo target. Browser capture uses a Web Audio PCM pre-roll and sends 16 kHz WAV.
 4. **Don't leave test sessions in `/room`** — they appear as ghost participants. Navigate away
    to an http(s) page to disconnect (the browse tool blocks `about:blank`).
 5. **Paige is browser-side** now (not a LiveKit participant). `agent/` is the parked alternative.
-6. React StrictMode (dev) double-mounts; the Deepgram recorder cleanup must remain
+6. React StrictMode (dev) double-mounts; the Deepgram audio-graph cleanup must remain
    idempotent and must never stop the original LiveKit microphone track.
 7. **Generated-image text is never evidence.** Qwen and MiniMax can invent labels. Generated
    pixels are blurred and exact cited labels/values render in HTML on top. SVG remains a

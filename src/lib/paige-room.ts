@@ -271,6 +271,19 @@ export function isSubstantiveTranscript(
   );
 }
 
+export function shouldGenerateVisual(
+  question: string,
+  answer: Pick<PaigeAnswer, "chart" | "citations">,
+): boolean {
+  if (answer.chart) return true;
+  return Boolean(
+    answer.citations.length > 0 &&
+      /\b(?:visual|visuali[sz]e|chart|graph|plot|diagram|graphic|illustration|image|picture|compare|comparison|trend)\b/i.test(
+        question,
+      ),
+  );
+}
+
 export function appendConversationTurn(
   history: PaigeConversationTurn[],
   turn: PaigeConversationTurn,

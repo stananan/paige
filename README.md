@@ -10,8 +10,9 @@ Built for the **YC Conversational AI Hackathon** (Jun 6–7 2026), Co-Pilot trac
 ## How it works
 
 1. **Flowing session** — say "Paige" once, ask natural follow-ups, and say "thanks Paige"
-   to return to the meeting. Deepgram transcribes every participant separately; three
-   substantive words interrupt Paige while filler sounds are ignored.
+   to return to the meeting. A short microphone pre-roll keeps Deepgram from clipping the
+   opening words; every participant is transcribed separately, and three substantive words
+   interrupt Paige while filler sounds are ignored.
 2. **Shared grounded response** — every participant sees and hears the same spoken takeaway,
    cited card, generated visual, and PDF page preview inside Paige's equal-sized tile.
 3. **Safe generated visuals** — Qwen/MiniMax supplies the visible presentation image while

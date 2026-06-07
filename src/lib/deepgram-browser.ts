@@ -17,34 +17,129 @@ interface ParticipantTranscriberOptions {
 
 const SILENCE_GRACE_MS = 900;
 const MAX_UTTERANCE_MS = 45_000;
+const PRE_ROLL_MS = 2_500;
+const CAPTURE_RETRY_MS = 250;
 const FIRST_INTERRUPT_PROBE_MS = 1_200;
 const NEXT_INTERRUPT_PROBE_MS = 900;
+const TARGET_SAMPLE_RATE = 16_000;
 
-function preferredMimeType(): string {
-  const candidates = [
-    "audio/webm;codecs=opus",
-    "audio/ogg;codecs=opus",
-    "audio/webm",
-  ];
-  return candidates.find((type) => MediaRecorder.isTypeSupported(type)) || "";
+type CompatibleWindow = typeof window & {
+  webkitAudioContext?: typeof AudioContext;
+};
+
+function audioContextConstructor(): typeof AudioContext | null {
+  if (typeof window === "undefined") return null;
+  const compatibleWindow = window as CompatibleWindow;
+  return (
+    compatibleWindow.AudioContext ??
+    compatibleWindow.webkitAudioContext ??
+    null
+  );
+}
+
+function concatenateSamples(chunks: Float32Array[]): Float32Array {
+  const total = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+  const samples = new Float32Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    samples.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return samples;
+}
+
+function resample(
+  samples: Float32Array,
+  inputSampleRate: number,
+  targetSampleRate: number,
+): { samples: Float32Array; sampleRate: number } {
+  if (inputSampleRate <= targetSampleRate) {
+    return { samples, sampleRate: inputSampleRate };
+  }
+
+  const ratio = inputSampleRate / targetSampleRate;
+  const output = new Float32Array(Math.max(1, Math.floor(samples.length / ratio)));
+  for (let outputIndex = 0; outputIndex < output.length; outputIndex += 1) {
+    const start = Math.floor(outputIndex * ratio);
+    const end = Math.max(start + 1, Math.floor((outputIndex + 1) * ratio));
+    let sum = 0;
+    for (let inputIndex = start; inputIndex < end; inputIndex += 1) {
+      sum += samples[inputIndex] ?? 0;
+    }
+    output[outputIndex] = sum / (end - start);
+  }
+  return { samples: output, sampleRate: targetSampleRate };
+}
+
+export function encodePcm16Wav(
+  chunks: Float32Array[],
+  inputSampleRate: number,
+  targetSampleRate = TARGET_SAMPLE_RATE,
+): Uint8Array<ArrayBuffer> {
+  const resampled = resample(
+    concatenateSamples(chunks),
+    inputSampleRate,
+    targetSampleRate,
+  );
+  const dataBytes = resampled.samples.length * 2;
+  const buffer = new ArrayBuffer(44 + dataBytes);
+  const view = new DataView(buffer);
+
+  const writeAscii = (offset: number, value: string) => {
+    for (let index = 0; index < value.length; index += 1) {
+      view.setUint8(offset + index, value.charCodeAt(index));
+    }
+  };
+
+  writeAscii(0, "RIFF");
+  view.setUint32(4, 36 + dataBytes, true);
+  writeAscii(8, "WAVE");
+  writeAscii(12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, resampled.sampleRate, true);
+  view.setUint32(28, resampled.sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  writeAscii(36, "data");
+  view.setUint32(40, dataBytes, true);
+
+  for (let index = 0; index < resampled.samples.length; index += 1) {
+    const sample = Math.max(-1, Math.min(1, resampled.samples[index] ?? 0));
+    view.setInt16(
+      44 + index * 2,
+      sample < 0 ? sample * 0x8000 : sample * 0x7fff,
+      true,
+    );
+  }
+  return new Uint8Array(buffer);
 }
 
 export function supportsParticipantTranscription(): boolean {
   return (
     typeof window !== "undefined" &&
-    typeof MediaRecorder !== "undefined" &&
+    audioContextConstructor() !== null &&
     typeof MediaStream !== "undefined"
   );
 }
 
 export class DeepgramParticipantTranscriber {
   private readonly options: ParticipantTranscriberOptions;
-  private recorder: MediaRecorder | null = null;
+  private audioContext: AudioContext | null = null;
+  private sourceNode: MediaStreamAudioSourceNode | null = null;
+  private processorNode: ScriptProcessorNode | null = null;
+  private silentGainNode: GainNode | null = null;
   private clonedTrack: MediaStreamTrack | null = null;
-  private chunks: Blob[] = [];
+  private preRollChunks: Float32Array[] = [];
+  private preRollSamples = 0;
+  private utteranceChunks: Float32Array[] = [];
+  private utteranceSamples = 0;
+  private utteranceActive = false;
   private stopTimer: number | null = null;
   private maxTimer: number | null = null;
   private probeTimer: number | null = null;
+  private captureRetryTimer: number | null = null;
   private probeInFlight = false;
   private interruptionDetected = false;
   private enabled = true;
@@ -54,12 +149,17 @@ export class DeepgramParticipantTranscriber {
 
   constructor(options: ParticipantTranscriberOptions) {
     this.options = options;
+    this.ensureCapture();
   }
 
   setEnabled(enabled: boolean) {
     this.enabled = enabled;
-    if (!enabled) this.finishUtterance();
-    else if (this.locallySpeaking) this.startUtterance();
+    if (!enabled) {
+      this.finishUtterance();
+      this.teardownCapture();
+      return;
+    }
+    this.ensureCapture();
   }
 
   setSpeaking(speaking: boolean) {
@@ -67,10 +167,11 @@ export class DeepgramParticipantTranscriber {
     if (!this.enabled || this.disposed) return;
     if (speaking) {
       this.clearStopTimer();
+      this.ensureCapture();
       this.startUtterance();
       return;
     }
-    if (!this.recorder || this.stopTimer !== null) return;
+    if (!this.utteranceActive || this.stopTimer !== null) return;
     this.stopTimer = window.setTimeout(
       () => this.finishUtterance(),
       SILENCE_GRACE_MS,
@@ -79,46 +180,121 @@ export class DeepgramParticipantTranscriber {
 
   dispose() {
     this.disposed = true;
-    this.clearTimers();
-    this.finishUtterance();
+    this.finishUtterance(false);
+    this.teardownCapture();
   }
 
-  private startUtterance() {
-    if (this.recorder || this.disposed) return;
-    const sourceTrack = this.options.getTrack();
-    if (!sourceTrack || sourceTrack.readyState !== "live" || !sourceTrack.enabled) {
+  private ensureCapture() {
+    if (
+      this.audioContext ||
+      this.captureRetryTimer !== null ||
+      !this.enabled ||
+      this.disposed
+    ) {
       return;
     }
 
-    this.chunks = [];
-    this.interruptionDetected = false;
-    this.clonedTrack = sourceTrack.clone();
-    const mimeType = preferredMimeType();
-    const recorder = new MediaRecorder(
-      new MediaStream([this.clonedTrack]),
-      mimeType ? { mimeType, audioBitsPerSecond: 64_000 } : undefined,
-    );
-    this.recorder = recorder;
-    recorder.ondataavailable = (event) => {
-      if (event.data.size > 0) this.chunks.push(event.data);
-    };
-    recorder.onerror = () => {
-      this.options.onError("Deepgram microphone capture failed.");
-      this.finishUtterance();
-    };
-    recorder.onstop = () => {
-      const blob = new Blob(this.chunks, {
-        type: recorder.mimeType || mimeType || "audio/webm",
+    const AudioContextClass = audioContextConstructor();
+    const sourceTrack = this.options.getTrack();
+    if (
+      !AudioContextClass ||
+      !sourceTrack ||
+      sourceTrack.readyState !== "live" ||
+      !sourceTrack.enabled
+    ) {
+      this.scheduleCaptureRetry();
+      return;
+    }
+
+    try {
+      const clonedTrack = sourceTrack.clone();
+      const context = new AudioContextClass({ latencyHint: "interactive" });
+      const source = context.createMediaStreamSource(
+        new MediaStream([clonedTrack]),
+      );
+      const processor = context.createScriptProcessor(2_048, 1, 1);
+      const silentGain = context.createGain();
+      silentGain.gain.value = 0;
+      processor.onaudioprocess = (event) => {
+        const input = event.inputBuffer.getChannelData(0);
+        const copy = new Float32Array(input.length);
+        copy.set(input);
+        this.captureSamples(copy);
+      };
+      source.connect(processor);
+      processor.connect(silentGain);
+      silentGain.connect(context.destination);
+
+      this.audioContext = context;
+      this.sourceNode = source;
+      this.processorNode = processor;
+      this.silentGainNode = silentGain;
+      this.clonedTrack = clonedTrack;
+      clonedTrack.addEventListener(
+        "ended",
+        () => {
+          if (this.clonedTrack !== clonedTrack) return;
+          this.teardownCapture();
+          this.scheduleCaptureRetry();
+        },
+        { once: true },
+      );
+      void context.resume().catch(() => {
+        // Browsers may briefly suspend audio until the room receives a gesture.
       });
-      this.chunks = [];
-      this.clonedTrack?.stop();
-      this.clonedTrack = null;
-      if (blob.size > 0 && !this.disposed) this.enqueueTranscription(blob);
-      if (this.locallySpeaking && this.enabled && !this.disposed) {
-        this.startUtterance();
-      }
-    };
-    recorder.start(250);
+      if (this.locallySpeaking) this.startUtterance();
+    } catch {
+      this.teardownCapture();
+      this.options.onError("Deepgram microphone capture failed.");
+      this.scheduleCaptureRetry();
+    }
+  }
+
+  private scheduleCaptureRetry() {
+    if (
+      this.captureRetryTimer !== null ||
+      !this.enabled ||
+      this.disposed ||
+      typeof window === "undefined"
+    ) {
+      return;
+    }
+    this.captureRetryTimer = window.setTimeout(() => {
+      this.captureRetryTimer = null;
+      this.ensureCapture();
+    }, CAPTURE_RETRY_MS);
+  }
+
+  private captureSamples(samples: Float32Array) {
+    if (!this.enabled || this.disposed) return;
+    if (this.utteranceActive) {
+      this.utteranceChunks.push(samples);
+      this.utteranceSamples += samples.length;
+      return;
+    }
+
+    this.preRollChunks.push(samples);
+    this.preRollSamples += samples.length;
+    const sampleRate = this.audioContext?.sampleRate ?? 48_000;
+    const maxPreRollSamples = Math.ceil((sampleRate * PRE_ROLL_MS) / 1_000);
+    while (
+      this.preRollSamples > maxPreRollSamples &&
+      this.preRollChunks.length > 1
+    ) {
+      const removed = this.preRollChunks.shift();
+      this.preRollSamples -= removed?.length ?? 0;
+    }
+  }
+
+  private startUtterance() {
+    if (this.utteranceActive || this.disposed || !this.audioContext) return;
+    void this.audioContext.resume().catch(() => {});
+    this.utteranceChunks = [...this.preRollChunks];
+    this.utteranceSamples = this.preRollSamples;
+    this.preRollChunks = [];
+    this.preRollSamples = 0;
+    this.utteranceActive = true;
+    this.interruptionDetected = false;
     this.maxTimer = window.setTimeout(
       () => this.finishUtterance(),
       MAX_UTTERANCE_MS,
@@ -126,16 +302,44 @@ export class DeepgramParticipantTranscriber {
     this.scheduleInterruptProbe(FIRST_INTERRUPT_PROBE_MS);
   }
 
-  private finishUtterance() {
+  private finishUtterance(submit = true) {
     this.clearTimers();
-    const recorder = this.recorder;
-    this.recorder = null;
-    if (recorder && recorder.state !== "inactive") {
-      recorder.stop();
-    } else {
-      this.clonedTrack?.stop();
-      this.clonedTrack = null;
+    if (!this.utteranceActive) return;
+    this.utteranceActive = false;
+    const chunks = this.utteranceChunks;
+    const samples = this.utteranceSamples;
+    this.utteranceChunks = [];
+    this.utteranceSamples = 0;
+    if (submit && samples > 0 && !this.disposed) {
+      const wav = encodePcm16Wav(
+        chunks,
+        this.audioContext?.sampleRate ?? 48_000,
+      );
+      this.enqueueTranscription(new Blob([wav], { type: "audio/wav" }));
     }
+    if (this.locallySpeaking && this.enabled && !this.disposed) {
+      this.startUtterance();
+    }
+  }
+
+  private teardownCapture() {
+    if (this.captureRetryTimer !== null) {
+      window.clearTimeout(this.captureRetryTimer);
+      this.captureRetryTimer = null;
+    }
+    if (this.processorNode) this.processorNode.onaudioprocess = null;
+    this.sourceNode?.disconnect();
+    this.processorNode?.disconnect();
+    this.silentGainNode?.disconnect();
+    this.clonedTrack?.stop();
+    void this.audioContext?.close().catch(() => {});
+    this.audioContext = null;
+    this.sourceNode = null;
+    this.processorNode = null;
+    this.silentGainNode = null;
+    this.clonedTrack = null;
+    this.preRollChunks = [];
+    this.preRollSamples = 0;
   }
 
   private enqueueTranscription(blob: Blob) {
@@ -169,18 +373,21 @@ export class DeepgramParticipantTranscriber {
       !this.enabled ||
       !this.locallySpeaking ||
       this.probeInFlight ||
-      this.chunks.length === 0 ||
+      this.utteranceSamples === 0 ||
       this.interruptionDetected
     ) {
       return;
     }
 
     this.probeInFlight = true;
-    const blob = new Blob([...this.chunks], {
-      type: this.recorder?.mimeType || "audio/webm",
-    });
+    const wav = encodePcm16Wav(
+      [...this.utteranceChunks],
+      this.audioContext?.sampleRate ?? 48_000,
+    );
     try {
-      const result = await this.requestTranscript(blob);
+      const result = await this.requestTranscript(
+        new Blob([wav], { type: "audio/wav" }),
+      );
       if (result.words >= 3 && result.transcript.trim()) {
         this.interruptionDetected = true;
         this.options.onInterruptionCandidate(result);
@@ -204,7 +411,7 @@ export class DeepgramParticipantTranscriber {
       method: "POST",
       headers: {
         Authorization: `Bearer ${this.options.liveKitToken}`,
-        "Content-Type": blob.type || "audio/webm",
+        "Content-Type": blob.type || "audio/wav",
       },
       body: blob,
     });

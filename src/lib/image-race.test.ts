@@ -82,6 +82,17 @@ describe("buildIllustrationPrompt", () => {
     expect(prompt).not.toContain("16.8");
     expect(prompt).toContain("No text");
   });
+
+  test("keeps generated chart backdrops abstract so pixels cannot contradict data", () => {
+    const prompt = buildIllustrationPrompt("Compare revenue", {
+      title: "Revenue",
+      labels: ["Q2 2025", "Q2 2026"],
+      values: [16.8, 21.6],
+    });
+    expect(prompt).toContain("abstract executive backdrop");
+    expect(prompt).toContain("Do not depict a chart");
+    expect(prompt).toContain("application adds the exact chart separately");
+  });
 });
 
 describe("configuredImageProviders", () => {

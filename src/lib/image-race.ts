@@ -41,8 +41,8 @@ export function buildIllustrationPrompt(
   const subject = cleaned || "a modern company meeting";
   const composition =
     chart && chart.values.length > 0
-      ? `Use a polished executive data-visualization composition with exactly ${chart.values.length} unlabeled vertical forms and clear visual hierarchy.`
-      : "Use a polished executive data-visualization composition with clean geometric forms.";
+      ? "Create an abstract executive backdrop with layered geometric shapes, flowing light, and generous negative space. Do not depict a chart, graph, bars, axes, dashboard, or table; the application adds the exact chart separately."
+      : "Use a polished abstract editorial composition with clean geometric forms.";
   return [
     `Create a clean, modern editorial visual that evokes: ${subject}.`,
     composition,

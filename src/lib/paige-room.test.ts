@@ -6,6 +6,7 @@ import {
   interactionIdFromImageName,
   isSubstantiveTranscript,
   sharedImageFileName,
+  shouldGenerateVisual,
   transcriptWordCount,
   transcriptIntent,
   type PaigeRoomEvent,
@@ -126,5 +127,30 @@ describe("Paige room protocol", () => {
     const name = sharedImageFileName("answer-123", "Qwen z-image", "image/png");
     expect(name).toBe("answer-123--Qwen-z-image.png");
     expect(interactionIdFromImageName(name)).toBe("answer-123");
+  });
+
+  test("generates AI visuals for every chart and explicit image request", () => {
+    const chartAnswer = {
+      chart: {
+        title: "Revenue",
+        labels: ["Q2 2025", "Q2 2026"],
+        values: [16.8, 20.1],
+        unit: "$M",
+      },
+      citations: [],
+    };
+    expect(shouldGenerateVisual("Pull up the Q2 numbers", chartAnswer)).toBe(true);
+    expect(
+      shouldGenerateVisual("Make an image of the report", {
+        chart: null,
+        citations: [{ sourceFile: "q2.pdf", page: "1" }],
+      }),
+    ).toBe(true);
+    expect(
+      shouldGenerateVisual("What did the report say?", {
+        chart: null,
+        citations: [{ sourceFile: "q2.pdf", page: "1" }],
+      }),
+    ).toBe(false);
   });
 });

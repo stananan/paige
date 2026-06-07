@@ -36,6 +36,7 @@ import {
   PAIGE_DATA_TOPIC,
   PAIGE_IMAGE_TOPIC,
   sharedImageFileName,
+  shouldGenerateVisual,
   transcriptIntent,
   type PaigeRoomEvent,
 } from "@/lib/paige-room";
@@ -66,15 +67,6 @@ export interface PaigeState {
 
 function isGrounded(reply: PaigeAnswer | null): boolean {
   return Boolean(reply && (reply.citations.length > 0 || reply.chart));
-}
-
-function requestsGeneratedVisual(question: string, answer: PaigeAnswer): boolean {
-  return Boolean(
-    (answer.chart || answer.citations.length > 0) &&
-      /\b(?:visual|visuali[sz]e|chart|graph|compare|comparison|trend)\b/i.test(
-        question,
-      ),
-  );
 }
 
 function spokenAnswer(answer: PaigeAnswer, visualRequested: boolean): string {
@@ -360,7 +352,7 @@ export function usePaige(liveKitToken: string): PaigeState {
       });
       const replacePresentation =
         isGrounded(answer) || !isGrounded(replyRef.current);
-      const visualRequested = requestsGeneratedVisual(question, answer);
+      const visualRequested = shouldGenerateVisual(question, answer);
 
       if (replacePresentation) {
         if (presentationInteractionIdRef.current !== interactionId) {
@@ -493,7 +485,7 @@ export function usePaige(liveKitToken: string): PaigeState {
         };
         applyAnswer(interactionId, q, speaker, body, answerEvent.at);
         void publishEvent(answerEvent);
-        if (requestsGeneratedVisual(q, body)) {
+        if (shouldGenerateVisual(q, body)) {
           void generateSharedVisual(interactionId, q, body);
         }
       } catch (reason) {
@@ -1160,6 +1152,12 @@ export function AnswerVisual({
   visualFailed?: boolean;
 }) {
   if (visualUrl) {
+    const maxValue = Math.max(...chart.values, 0);
+    const minValue = Math.min(...chart.values, 0);
+    const range = maxValue - minValue || 1;
+    const zeroFromTop = (maxValue / range) * 100;
+    const columnCount = Math.max(1, chart.values.length);
+
     return (
       <figure className="relative min-h-56 overflow-hidden rounded-xl border border-white/10 bg-[#07111e]">
         {/* The generated image supplies the visual style. Exact source values stay
@@ -1177,18 +1175,59 @@ export function AnswerVisual({
             <p className="mt-0.5 text-[9px] text-white/55">
               {chart.unit} · Exact values from cited PDFs
             </p>
-            <div className="mt-2 grid grid-cols-2 gap-1.5">
+            <div className="relative mt-3 h-24">
+              <span
+                className="absolute inset-x-0 border-t border-white/25"
+                style={{ top: `${zeroFromTop}%` }}
+              />
+              <div
+                className="absolute inset-0 grid gap-2"
+                style={{
+                  gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))`,
+                }}
+              >
+                {chart.values.map((value, index) => {
+                  const height = Math.max(3, (Math.abs(value) / range) * 100);
+                  const top =
+                    value >= 0
+                      ? ((maxValue - value) / range) * 100
+                      : zeroFromTop;
+                  return (
+                    <div
+                      key={`${chart.labels[index]}-${index}`}
+                      className="relative"
+                      title={`${chart.labels[index]}: ${value.toLocaleString()} ${chart.unit}`}
+                    >
+                      <span
+                        className={`absolute inset-x-[18%] rounded-t-sm ${
+                          value >= 0
+                            ? "bg-gradient-to-t from-emerald-500 to-sky-300"
+                            : "bg-gradient-to-b from-amber-300 to-rose-500"
+                        }`}
+                        style={{ top: `${top}%`, height: `${height}%` }}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div
+              className="mt-1 grid gap-2"
+              style={{
+                gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))`,
+              }}
+            >
               {chart.values.map((value, index) => (
                 <div
                   key={`${chart.labels[index]}-${index}`}
-                  className="rounded-lg border border-emerald-300/20 bg-emerald-300/10 px-2 py-1.5"
+                  className="min-w-0 text-center"
                 >
-                  <p className="truncate text-[9px] text-emerald-100/70">
+                  <p className="truncate text-[8px] text-white/60">
                     {chart.labels[index]}
                   </p>
-                  <p className="text-sm font-semibold text-emerald-100">
+                  <p className="text-[10px] font-semibold text-emerald-100">
                     {value.toLocaleString()}{" "}
-                    <span className="text-[9px] font-normal text-emerald-100/60">
+                    <span className="text-[8px] font-normal text-emerald-100/60">
                       {chart.unit}
                     </span>
                   </p>
@@ -1204,7 +1243,7 @@ export function AnswerVisual({
     );
   }
 
-  if (visualLoading) {
+  if (visualLoading || !visualFailed) {
     return (
       <figure className="flex min-h-48 flex-col items-center justify-center rounded-xl border border-sky-300/20 bg-gradient-to-br from-sky-300/10 to-emerald-300/5 p-5 text-center">
         <span className="h-8 w-8 animate-spin rounded-full border-2 border-sky-200/20 border-t-sky-200" />
