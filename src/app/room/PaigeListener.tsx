@@ -61,32 +61,75 @@ export function usePaige(): PaigeState {
   const speakingRef = useRef(false);
   const wantListeningRef = useRef(false);
   const requestRef = useRef<AbortController | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  const speak = useCallback(async (text: string) => {
+  const stopSpeech = useCallback(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    audioRef.current = null;
+    audio.pause();
+    audio.dispatchEvent(new Event("error"));
+    setSpeaking(false);
+    speakingRef.current = false;
+  }, []);
+
+  const speak = useCallback(async (
+    text: string,
+    signal: AbortSignal,
+    revealAnswer: () => void,
+  ) => {
+    let revealed = false;
+    const reveal = () => {
+      if (revealed || signal.aborted) return;
+      revealed = true;
+      revealAnswer();
+    };
+
+    let res: Response;
+    try {
+      res = await fetch("/api/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+        signal,
+      });
+    } catch (reason) {
+      if (signal.aborted) throw reason;
+      reveal();
+      return;
+    }
+    if (!res.ok) {
+      reveal();
+      return;
+    }
+
+    const url = URL.createObjectURL(await res.blob());
+    if (signal.aborted) {
+      URL.revokeObjectURL(url);
+      return;
+    }
+    const audio = new Audio(url);
+    audio.preload = "auto";
+    audioRef.current = audio;
     setSpeaking(true);
     speakingRef.current = true;
     try {
       recogRef.current?.stop();
     } catch {}
+
     try {
-      const res = await fetch("/api/tts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
+      const ended = new Promise<void>((resolve) => {
+        audio.onended = () => resolve();
+        audio.onerror = () => resolve();
       });
-      if (res.ok) {
-        const url = URL.createObjectURL(await res.blob());
-        const audio = new Audio(url);
-        await new Promise<void>((resolve) => {
-          audio.onended = () => {
-            URL.revokeObjectURL(url);
-            resolve();
-          };
-          audio.onerror = () => resolve();
-          audio.play().catch(() => resolve());
-        });
-      }
+      await audio.play();
+      reveal();
+      await ended;
+    } catch {
+      reveal();
     } finally {
+      if (audioRef.current === audio) audioRef.current = null;
+      URL.revokeObjectURL(url);
       setSpeaking(false);
       speakingRef.current = false;
       if (wantListeningRef.current) {
@@ -103,6 +146,7 @@ export function usePaige(): PaigeState {
       if (!q) return;
 
       requestRef.current?.abort();
+      stopSpeech();
       const controller = new AbortController();
       requestRef.current = controller;
       setThinking(true);
@@ -118,10 +162,11 @@ export function usePaige(): PaigeState {
         const body = (await response.json()) as PaigeAnswer & { error?: string };
         if (!response.ok) throw new Error(body.error || "Paige couldn't answer");
 
-        setReply(body);
-        setThinking(false);
-        if (requestRef.current === controller) requestRef.current = null;
-        await speak(body.answer);
+        const revealAnswer = () => {
+          setReply(body);
+          setThinking(false);
+        };
+        await speak(body.answer, controller.signal, revealAnswer);
       } catch (reason) {
         if (controller.signal.aborted) return;
         setError(reason instanceof Error ? reason.message : "Paige couldn't answer");
@@ -132,7 +177,7 @@ export function usePaige(): PaigeState {
         }
       }
     },
-    [speak],
+    [speak, stopSpeech],
   );
 
   const handleTranscript = useCallback(
@@ -183,12 +228,13 @@ export function usePaige(): PaigeState {
 
     return () => {
       requestRef.current?.abort();
+      stopSpeech();
       wantListeningRef.current = false;
       try {
         recog.abort();
       } catch {}
     };
-  }, [handleTranscript]);
+  }, [handleTranscript, stopSpeech]);
 
   const toggle = useCallback(() => {
     const recog = recogRef.current;

@@ -50,7 +50,7 @@ Smoke-test Qwen image generation (writes to ignored `data/.qwen-test/`):
 - [x] **3–6 Paige's voice spine** — ✅ Browser Web Speech API STT (wake "Paige") in `/room` + MiniMax TTS (`/api/tts`). Needs a real-Chrome mic test. (LiveKit-Agents path parked in `agent/`, needs Deepgram.)
 - [x] **6–9 Ingest pipeline** — `bun run ingest`: /data → Unsiloed parse with cached results → page-preserving chunks → synchronized Moss index + live citation query verification
 - [x] **9–13 Fast beat (hero)** — wake cmd → Moss retrieve → GPT-5.4 Mini (TrueFoundry) → spoken answer + cited card + deterministic chart; production verified
-- [x] **Demo workspace + corpus** — `/demo-company` lists 14 downloadable FDC PDFs, including Q1-Q4 2025 plus Q1 and preliminary Q2 2026; the live Moss index contains 40 page-cited documents and eight prepared prompts
+- [x] **Demo workspace + corpus** — `/demo-company` lists 15 downloadable FDC PDFs, including Q1-Q4 2025, Q1-Q2 2026, and estimated Q3 2026 results; the live Moss index contains 44 page-cited documents and ten prepared prompts
 - [x] **Paige presence + general chat** — Paige remains the same size as every webcam tile and renders cited answers/charts inside her tile. The text dock can be closed and reopened. Obvious conversational prompts bypass Moss; ambiguous business prompts still retrieve.
 - [x] **13–16 Citations + chart polish** — every evidence chip opens the exact public PDF page; charts render and are value-grounded across one or more cited source PDFs
 - [x] **16–19 Image safety correction** — Qwen vs MiniMax race remains implemented at `/api/image`, but generated images are disabled in factual answers; deterministic cited charts are the only data visualization

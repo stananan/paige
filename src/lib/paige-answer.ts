@@ -9,6 +9,7 @@ const MOSS_QUERY_TIMEOUT_MS = 3_000;
 const MOSS_MANAGE_TIMEOUT_MS = 4_000;
 const MODEL_TIMEOUT_MS = 15_000;
 const CONVERSATION_MAX_TOKENS = 220;
+const DEMO_CURRENT_YEAR = 2026;
 
 // Paige's voice when a question doesn't match any indexed company document.
 // She still answers as a meeting copilot — chat, brainstorm, facilitate — rather
@@ -195,7 +196,7 @@ export function shouldRetrieveCompanyDocuments(question: string): boolean {
   if (!normalized) return false;
 
   const companyEvidenceCue =
-    /\b(?:fdc|company|our|q[1-4]|fy20\d{2}|20\d{2}|report|pdf|document|source|citation|evidence|data|statistic|metric|revenue|arr|margin|income|cash flow|customer|renewal|pipeline|incident|security|compliance|headcount|employee|forecast|budget|sales|support|roadmap|booking|churn|retention|nrr|graph|chart|compare)\b/i;
+    /\b(?:fdc|company|our|q[1-4]|quarter\s*[1-4]|first quarter|second quarter|third quarter|fourth quarter|fy20\d{2}|20\d{2}|report|pdf|document|source|citation|evidence|data|statistic|metric|revenue|arr|margin|income|cash flow|customer|renewal|pipeline|incident|security|compliance|headcount|employee|forecast|budget|sales|support|roadmap|booking|churn|retention|nrr|graph|chart|visual|compare)\b/i;
   if (companyEvidenceCue.test(normalized)) return true;
 
   const conversationalCue =
@@ -208,18 +209,29 @@ export function shouldRetrieveCompanyDocuments(question: string): boolean {
 }
 
 export function retrievalQueryForQuestion(question: string): string {
-  const quarter = question.match(/\bQ[1-4]\b/i)?.[0].toUpperCase();
-  const hasExplicitYear = /\b20\d{2}\b/.test(question);
-  if (!quarter || hasExplicitYear) return question;
+  const quarters = requestedQuarterLabels(question);
+  const years = requestedYearLabels(question);
 
-  const comparesPriorYear =
-    /\b(?:this|current)\s+year\b[\s\S]*\b(?:last|prior|previous)\s+year\b|\b(?:last|prior|previous)\s+year\b[\s\S]*\b(?:this|current)\s+year\b/i.test(
-      question,
-    );
-  const periods = comparesPriorYear
-    ? `${quarter} 2026 and ${quarter} 2025`
-    : `${quarter} 2026`;
-  return `${question}\nRetrieval periods: ${periods}.`;
+  if (
+    quarters.size === 0 &&
+    years.size > 0 &&
+    requestsQuarterlyReportCollection(question)
+  ) {
+    for (const quarter of ["Q1", "Q2", "Q3", "Q4"]) quarters.add(quarter);
+  }
+  if (quarters.size === 0) return question;
+  if (years.size === 0) years.add(String(DEMO_CURRENT_YEAR));
+
+  const periods = [...years].flatMap((year) =>
+    [...quarters].map((quarter) => `${quarter} ${year}`),
+  );
+  if (
+    periods.length === 1 &&
+    new RegExp(`\\b${periods[0]}\\b`, "i").test(question)
+  ) {
+    return question;
+  }
+  return `${question}\nRetrieval periods: ${periods.join(" and ")}.`;
 }
 
 function documentTermScore(terms: string[], document: RetrievedDocument): number {
@@ -276,12 +288,13 @@ function prioritizeRequestedPeriods(
   documents: RetrievedDocument[],
 ): RetrievedDocument[] {
   const years = [...requestedYearLabels(question)];
-  const quarter = question.match(/\bQ[1-4]\b/i)?.[0].toUpperCase();
-  if (years.length === 0 || !quarter) return documents;
+  const quarters = [...requestedQuarterLabels(question)];
+  if (years.length === 0 || quarters.length === 0) return documents;
   const metricAliases = requestedMetric(question) ?? [];
 
   const preferred = years
-    .map((year) => {
+    .flatMap((year) => quarters.map((quarter) => ({ year, quarter })))
+    .map(({ year, quarter }) => {
       const period = `${quarter} ${year}`.toLowerCase();
       return documents
         .filter((document) => {
@@ -292,11 +305,11 @@ function prioritizeRequestedPeriods(
           const source = document.sourceFile.toLowerCase();
           const text = document.text.toLowerCase();
           const score =
-            (source.includes(period) ? 20 : 0) +
+            (source.includes(period) ? 30 : 0) +
             (text.includes(period) ? 8 : 0) +
             (/\|\s*period\s*\|/i.test(document.text) ? 8 : 0) +
             (metricAliases.some((alias) => text.includes(alias)) ? 4 : 0) +
-            (document.page === "1" ? 2 : 0);
+            (document.page === "1" ? 12 : 0);
           return { document, score };
         })
         .sort((left, right) => right.score - left.score)[0]?.document;
@@ -384,9 +397,14 @@ export async function retrieveMossDocuments(
   const environment = dependencies.environment ?? process.env;
   const fetchImpl = dependencies.fetchImpl ?? fetch;
   const requestedYears = requestedYearLabels(question);
+  const requestedQuarters = requestedQuarterLabels(question);
   const hasTargetedPeriod =
-    requestedYears.size > 0 && /\bQ[1-4]\b/i.test(question);
-  const resultLimit = requestedYears.size >= 2 ? 8 : 5;
+    requestedYears.size > 0 && requestedQuarters.size > 0;
+  const requestedPeriodCount = requestedYears.size * requestedQuarters.size;
+  const resultLimit = Math.min(
+    12,
+    Math.max(5, requestedPeriodCount + (requestedYears.size >= 2 ? 4 : 2)),
+  );
 
   let semanticDocuments: RetrievedDocument[] = [];
   let semanticError: unknown;
@@ -419,12 +437,18 @@ export async function retrieveMossDocuments(
     ]).slice(0, resultLimit);
   }
 
+  let allDocuments: RetrievedDocument[] = [];
   let lexicalDocuments: RetrievedDocument[] = [];
   let lexicalError: unknown;
   try {
+    allDocuments = await getAllMossDocuments(
+      environment,
+      fetchImpl,
+      dependencies.signal,
+    );
     lexicalDocuments = rankDocuments(
       question,
-      await getAllMossDocuments(environment, fetchImpl, dependencies.signal),
+      allDocuments,
       true,
       hasTargetedPeriod ? 50 : resultLimit,
     );
@@ -439,14 +463,13 @@ export async function retrieveMossDocuments(
     return [];
   }
 
-  const lexicalLeadCount = requestedYears.size >= 2 ? 4 : 2;
   return prioritizeRequestedPeriods(
     question,
-    uniqueDocuments([
-      ...lexicalDocuments.slice(0, lexicalLeadCount),
-      ...semanticDocuments,
-      ...lexicalDocuments.slice(lexicalLeadCount),
-    ]),
+    uniqueDocuments(
+      hasTargetedPeriod
+        ? [...semanticDocuments, ...lexicalDocuments, ...allDocuments]
+        : [...lexicalDocuments, ...semanticDocuments, ...allDocuments],
+    ),
   ).slice(0, resultLimit);
 }
 
@@ -486,7 +509,7 @@ function buildPrompt(question: string, documents: RetrievedDocument[]): string {
 }
 
 function questionRequestsChart(question: string): boolean {
-  return /\b(compare|comparison|trend|chart|graph|visuali[sz]e|across|breakdown|versus|vs\.?|over time|by year|by quarter|by month|change[ds]?|grow|grew|growth|increase[ds]?|decrease[ds]?|rose|fell|history)\b/i.test(
+  return /\b(compare|comparison|trend|chart|graph|visual|visuali[sz]e|across|breakdown|versus|vs\.?|over time|by year|by quarter|by month|change[ds]?|grow|grew|growth|increase[ds]?|decrease[ds]?|rose|fell|history)\b/i.test(
     question,
   );
 }
@@ -514,7 +537,16 @@ function requestedMetric(question: string): string[] | null {
     [/\bcustomers?\b/, ["customers", "customer count"]],
     [/\bemployees?\b|\bheadcount\b/, ["employees", "headcount"]],
   ];
-  return metrics.find(([pattern]) => pattern.test(normalized))?.[1] ?? null;
+  const explicit = metrics.find(([pattern]) => pattern.test(normalized))?.[1];
+  if (explicit) return explicit;
+  if (
+    questionRequestsChart(question) &&
+    requestedYearLabels(question).size > 0 &&
+    /\b(?:quarter|quarterly|reports?)\b/i.test(question)
+  ) {
+    return ["revenue"];
+  }
+  return null;
 }
 
 function parseTableValue(value: string): number | null {
@@ -543,7 +575,43 @@ function requestedYearLabels(question: string): Set<string> {
   for (const year of question.match(/\b(?:FY)?20\d{2}\b/gi) ?? []) {
     years.add(year.toUpperCase().replace(/^FY/, ""));
   }
+  if (/\b(?:this|current)\s+year\b/i.test(question)) {
+    years.add(String(DEMO_CURRENT_YEAR));
+  }
+  if (/\b(?:last|prior|previous)\s+year\b/i.test(question)) {
+    years.add(String(DEMO_CURRENT_YEAR - 1));
+  }
   return years;
+}
+
+function requestedQuarterLabels(question: string): Set<string> {
+  const quarters = new Set<string>();
+  for (const match of question.matchAll(/\bQ([1-4])\b/gi)) {
+    quarters.add(`Q${match[1]}`);
+  }
+  for (const match of question.matchAll(/\bquarter\s*([1-4])\b/gi)) {
+    quarters.add(`Q${match[1]}`);
+  }
+  const ordinalQuarters: Array<[RegExp, string]> = [
+    [/\bfirst\s+quarter\b/i, "Q1"],
+    [/\bsecond\s+quarter\b/i, "Q2"],
+    [/\bthird\s+quarter\b/i, "Q3"],
+    [/\bfourth\s+quarter\b/i, "Q4"],
+  ];
+  for (const [pattern, quarter] of ordinalQuarters) {
+    if (pattern.test(question)) quarters.add(quarter);
+  }
+  return quarters;
+}
+
+function requestsQuarterlyReportCollection(question: string): boolean {
+  return (
+    /\bquarter(?:ly)?\s+reports?\b/i.test(question) ||
+    (/\breports?\b/i.test(question) &&
+      /\b(?:all|list|show|visual|visuali[sz]e|chart|graph|compare|comparison)\b/i.test(
+        question,
+      ))
+  );
 }
 
 function chartUnit(header: string, values: string[], document: RetrievedDocument): string {
@@ -571,9 +639,7 @@ export function extractGroundedTableChart(
   const metricAliases = requestedMetric(question);
   if (!metricAliases) return null;
 
-  const requestedQuarters = new Set(
-    question.toUpperCase().match(/\bQ[1-4]\b/g) ?? [],
-  );
+  const requestedQuarters = requestedQuarterLabels(question);
   const requestedYears = requestedYearLabels(question);
   const crossDocumentRows: Array<{
     label: string;
@@ -779,6 +845,91 @@ function deterministicChartAnswer(
   };
 }
 
+function deterministicQuarterMetric(
+  question: string,
+  documents: RetrievedDocument[],
+  model: string,
+): PaigeAnswer | null {
+  if (questionRequestsChart(question)) return null;
+  const metricAliases = requestedMetric(question);
+  const requestedQuarters = requestedQuarterLabels(question);
+  const requestedYears = requestedYearLabels(question);
+  if (!metricAliases || requestedQuarters.size !== 1) return null;
+
+  const candidates: Array<{
+    document: RetrievedDocument;
+    label: string;
+    metric: string;
+    rawValue: string;
+    value: number;
+    year: number;
+  }> = [];
+
+  for (const document of documents) {
+    const lines = document.text.split(/\r?\n/);
+    for (let index = 0; index < lines.length; index++) {
+      if (!lines[index].includes("|")) continue;
+      const headers = tableCells(lines[index]);
+      if (headers[0]?.toUpperCase() !== "PERIOD") continue;
+      const metricIndex = headers.findIndex((header, headerIndex) => {
+        if (headerIndex === 0) return false;
+        const normalized = header.toLowerCase();
+        return metricAliases.some((alias) => normalized.includes(alias));
+      });
+      if (metricIndex === -1) continue;
+
+      for (let rowIndex = index + 1; rowIndex < lines.length; rowIndex++) {
+        if (!lines[rowIndex].includes("|")) break;
+        const cells = tableCells(lines[rowIndex]);
+        if (cells[0]?.toUpperCase() === "PERIOD") break;
+        if (cells.length !== headers.length) continue;
+        const label = cells[0];
+        const normalizedLabel = label.toUpperCase();
+        if (
+          ![...requestedQuarters].some((quarter) =>
+            normalizedLabel.includes(quarter),
+          )
+        ) {
+          continue;
+        }
+        if (
+          requestedYears.size > 0 &&
+          ![...requestedYears].some((year) => normalizedLabel.includes(year))
+        ) {
+          continue;
+        }
+        const value = parseTableValue(cells[metricIndex]);
+        if (value === null) continue;
+        candidates.push({
+          document,
+          label,
+          metric: headers[metricIndex],
+          rawValue: cells[metricIndex],
+          value,
+          year: Number(label.match(/\b20\d{2}\b/)?.[0] ?? 0),
+        });
+      }
+    }
+  }
+
+  const best = candidates.sort(
+    (left, right) =>
+      Number(right.document.page === "1") - Number(left.document.page === "1") ||
+      right.year - left.year,
+  )[0];
+  if (!best) return null;
+
+  return {
+    answer: `${best.label} ${best.metric.toLowerCase()} was ${formatChartValue(
+      best.value,
+      chartUnit(best.metric, [best.rawValue], best.document),
+    )}.`,
+    citations: [citationFor(best.document)],
+    chart: null,
+    model,
+  };
+}
+
 function deterministicQuarterSummary(
   question: string,
   documents: RetrievedDocument[],
@@ -787,8 +938,10 @@ function deterministicQuarterSummary(
   if (!/\b(?:key statistics|key stats|report data|quarter(?:ly)? report|q[1-4] data)\b/i.test(question)) {
     return null;
   }
-  const requestedQuarter = question.match(/\bQ[1-4]\b/i)?.[0].toUpperCase();
-  if (!requestedQuarter) return null;
+  const requestedQuarters = requestedQuarterLabels(question);
+  const requestedYears = requestedYearLabels(question);
+  if (requestedQuarters.size !== 1) return null;
+  const requestedQuarter = [...requestedQuarters][0];
 
   const candidates = documents
     .map((document) => {
@@ -818,6 +971,11 @@ function deterministicQuarterSummary(
       return { document, label, values, year };
     })
     .filter(({ label, values }) => label && values.has("REVENUE"))
+    .filter(
+      ({ label }) =>
+        requestedYears.size === 0 ||
+        [...requestedYears].some((year) => label.includes(year)),
+    )
     .sort((left, right) => right.year - left.year);
 
   const latest = candidates[0];
@@ -841,6 +999,61 @@ function deterministicQuarterSummary(
   };
 }
 
+function deterministicReportCatalog(
+  question: string,
+  documents: RetrievedDocument[],
+  model: string,
+): PaigeAnswer | null {
+  if (!requestsQuarterlyReportCollection(question)) return null;
+  const requestedYears = requestedYearLabels(question);
+  if (requestedYears.size === 0) return null;
+
+  const reports = documents
+    .map((document) => {
+      const match = document.sourceFile.match(/\b(Q[1-4])\s+(20\d{2})\b/i);
+      if (!match || document.page !== "1" || !requestedYears.has(match[2])) {
+        return null;
+      }
+      return {
+        document,
+        quarter: match[1].toUpperCase(),
+        year: match[2],
+      };
+    })
+    .filter(
+      (
+        report,
+      ): report is {
+        document: RetrievedDocument;
+        quarter: string;
+        year: string;
+      } => report !== null,
+    )
+    .sort(
+      (left, right) =>
+        left.year.localeCompare(right.year) ||
+        left.quarter.localeCompare(right.quarter),
+    );
+  const uniqueReports = [
+    ...new Map(
+      reports.map((report) => [
+        `${report.quarter}\0${report.year}`,
+        report,
+      ]),
+    ).values(),
+  ];
+  if (uniqueReports.length === 0) return null;
+
+  return {
+    answer: `I found ${uniqueReports
+      .map(({ quarter, year }) => `${quarter} ${year}`)
+      .join(", ")} quarterly reports.`,
+    citations: uniqueReports.map(({ document }) => citationFor(document)),
+    chart: null,
+    model,
+  };
+}
+
 function deterministicEvidenceAnswer(
   question: string,
   documents: RetrievedDocument[],
@@ -850,7 +1063,11 @@ function deterministicEvidenceAnswer(
     const chartAnswer = deterministicChartAnswer(question, documents, model);
     if (chartAnswer) return chartAnswer;
   }
-  return deterministicQuarterSummary(question, documents, model);
+  return (
+    deterministicQuarterMetric(question, documents, model) ??
+    deterministicQuarterSummary(question, documents, model) ??
+    deterministicReportCatalog(question, documents, model)
+  );
 }
 
 function extractQualifiers(prefix: string, suffix: string): Set<string> {
@@ -1078,6 +1295,9 @@ export async function generateAnswerFromDocuments(
       model,
     };
   }
+
+  const deterministic = deterministicEvidenceAnswer(question, documents, model);
+  if (deterministic) return deterministic;
 
   const timeoutSignal = AbortSignal.timeout(MODEL_TIMEOUT_MS);
   const response = await fetchImpl(`${baseUrl}/chat/completions`, {

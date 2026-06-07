@@ -10,6 +10,7 @@ import {
   shouldRetrieveCompanyDocuments,
   type RetrievedDocument,
 } from "./paige-answer";
+import { fdcDocuments } from "../data/fdc";
 
 const documents: RetrievedDocument[] = [
   {
@@ -58,9 +59,9 @@ const q2Documents: RetrievedDocument[] = [
     ].join("\n"),
   },
   {
-    sourceFile: "fdc/FDC Q2 2026 Preliminary Quarterly Report.pdf",
+    sourceFile: "fdc/FDC Q2 2026 Quarterly Report.pdf",
     sourceUrl:
-      "/demo-company/fdc/FDC%20Q2%202026%20Preliminary%20Quarterly%20Report.pdf#page=1",
+      "/demo-company/fdc/FDC%20Q2%202026%20Quarterly%20Report.pdf#page=1",
     page: "1",
     text: [
       "REPORT STATUS: Preliminary forecast.",
@@ -70,6 +71,25 @@ const q2Documents: RetrievedDocument[] = [
       "PERIOD | OPERATING CASH FLOW | NRR | CUSTOMERS | EMPLOYEES",
       "Q2 2026 forecast | 3.1 | 124% | 447 | 298",
     ].join("\n"),
+  },
+];
+
+const lastYearQuarterDocuments: RetrievedDocument[] = [
+  {
+    sourceFile: "fdc/FDC Q1 2025 Quarterly Report.pdf",
+    page: "1",
+    text: "All currency values are in USD millions.\nPERIOD | REVENUE\nQ1 2025 actual | 16.0",
+  },
+  q2Documents[0],
+  {
+    sourceFile: "fdc/FDC Q3 2025 Quarterly Report.pdf",
+    page: "1",
+    text: "All currency values are in USD millions.\nPERIOD | REVENUE\nQ3 2025 actual | 17.2",
+  },
+  {
+    sourceFile: "fdc/FDC Q4 2025 Quarterly Report.pdf",
+    page: "1",
+    text: "All currency values are in USD millions.\nPERIOD | REVENUE\nQ4 2025 actual | 18.4",
   },
 ];
 
@@ -226,6 +246,31 @@ describe("retrieveMossDocuments", () => {
       q2Documents[1].sourceFile,
       q2Documents[0].sourceFile,
     ]);
+  });
+
+  test("selects every requested quarterly scorecard for a broad year query", async () => {
+    const question = retrievalQueryForQuestion(
+      "Give me a visual of the reports last year.",
+    );
+    const results = await retrieveMossDocuments(question, {
+      environment: mossEnvironment,
+      fetchImpl: async (input) => {
+        const url = String(input);
+        if (url.endsWith("/identity/auth/token")) {
+          return Response.json({ token: "moss-token" }, { status: 201 });
+        }
+        if (url.endsWith("/query")) {
+          return Response.json({
+            docs: [asMossDocument(lastYearQuarterDocuments[3])],
+          });
+        }
+        return Response.json(lastYearQuarterDocuments.map(asMossDocument));
+      },
+    });
+
+    expect(results.slice(0, 4).map((document) => document.sourceFile)).toEqual(
+      lastYearQuarterDocuments.map((document) => document.sourceFile),
+    );
   });
 });
 
@@ -459,6 +504,25 @@ describe("extractGroundedTableChart", () => {
   test("returns no chart when the question does not name a table metric", () => {
     expect(extractGroundedTableChart("Compare the last several years", [q3History])).toBeNull();
   });
+
+  test("defaults a visual of quarterly reports to revenue", () => {
+    expect(
+      extractGroundedTableChart(
+        "Give me a visual of the reports last year.",
+        lastYearQuarterDocuments,
+      )?.chart,
+    ).toEqual({
+      title: "REVENUE",
+      labels: [
+        "Q1 2025 actual",
+        "Q2 2025 actual",
+        "Q3 2025 actual",
+        "Q4 2025 actual",
+      ],
+      values: [16, 16.8, 17.2, 18.4],
+      unit: "USD millions",
+    });
+  });
 });
 
 describe("generateAnswerFromDocuments", () => {
@@ -623,6 +687,49 @@ describe("generateAnswerFromDocuments", () => {
     ]);
   });
 
+  test("answers quarter names and relative years from the exact scorecard", async () => {
+    let modelCalled = false;
+    const answer = await generateAnswerFromDocuments(
+      "What was quarter 2 revenue last year?",
+      [q2Documents[0]],
+      {
+        fetchImpl: async () => {
+          modelCalled = true;
+          return Response.json({});
+        },
+        environment: {
+          TRUEFOUNDRY_BASE_URL: "https://gateway.truefoundry.ai",
+          TRUEFOUNDRY_API_KEY: "test-key",
+        },
+      },
+    );
+
+    expect(modelCalled).toBe(false);
+    expect(answer.answer).toBe(
+      "Q2 2025 actual revenue was $16.8 million.",
+    );
+    expect(answer.citations[0]?.sourceFile).toBe(
+      "fdc/FDC Q2 2025 Quarterly Report.pdf",
+    );
+  });
+
+  test("lists all available quarterly reports for a relative year", async () => {
+    const answer = await generateAnswerFromDocuments(
+      "Show me all quarterly reports from last year.",
+      lastYearQuarterDocuments,
+      {
+        fetchImpl: async () => Response.json({}),
+        environment: {
+          TRUEFOUNDRY_BASE_URL: "https://gateway.truefoundry.ai",
+          TRUEFOUNDRY_API_KEY: "test-key",
+        },
+      },
+    );
+
+    expect(answer.answer).toContain("Q1 2025, Q2 2025, Q3 2025, Q4 2025");
+    expect(answer.citations).toHaveLength(4);
+  });
+
   test("forwards caller cancellation to the TrueFoundry request", async () => {
     const controller = new AbortController();
     let requestSignal: AbortSignal | null | undefined;
@@ -715,6 +822,35 @@ describe("retrieval intent", () => {
     expect(retrievalQueryForQuestion("What was Q2 2025 revenue?")).toBe(
       "What was Q2 2025 revenue?",
     );
+    expect(
+      retrievalQueryForQuestion("What was quarter 2 revenue last year?"),
+    ).toContain("Q2 2025");
+    expect(
+      retrievalQueryForQuestion("What was Q2 revenue last year?"),
+    ).not.toContain("Q2 2026");
+    expect(
+      retrievalQueryForQuestion("Give me a visual of the reports last year."),
+    ).toContain("Q1 2025 and Q2 2025 and Q3 2025 and Q4 2025");
+  });
+});
+
+describe("FDC quarterly corpus", () => {
+  test("uses the renamed Q2 report and includes estimated Q3 results", () => {
+    expect(
+      fdcDocuments.some(
+        (document) => document.fileName === "FDC Q2 2026 Quarterly Report.pdf",
+      ),
+    ).toBe(true);
+    expect(
+      fdcDocuments.some((document) =>
+        document.fileName.includes("Q2 2026 Preliminary"),
+      ),
+    ).toBe(false);
+    expect(
+      fdcDocuments.some(
+        (document) => document.fileName === "FDC Estimated Q3 2026 Results.pdf",
+      ),
+    ).toBe(true);
   });
 });
 

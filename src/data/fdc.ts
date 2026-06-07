@@ -190,7 +190,9 @@ export const fdcIncidents: FdcIncident[] = [
 
 export const fdcQuestions = [
   "What are the key statistics in our latest Q2 report?",
+  "What was quarter 2 revenue last year?",
   "Create a graph comparing Q2 revenue this year and last year.",
+  "Give me a visual of the quarterly reports last year.",
   "How did FDC's revenue and operating income change from 2024 to 2025?",
   "Which incident affected the most customers, and what did engineering change?",
   "Why is the Northstar Logistics renewal at risk?",
@@ -201,7 +203,9 @@ export const fdcQuestions = [
 
 interface FdcQuarterReportInput {
   period: string;
-  status: "Actual" | "Preliminary forecast";
+  status: "Actual" | "Preliminary forecast" | "Estimated forecast";
+  fileName?: string;
+  title?: string;
   updated: string;
   cutoff: string;
   revenue: string;
@@ -234,13 +238,12 @@ interface FdcQuarterReportInput {
 }
 
 function quarterlyReport(input: FdcQuarterReportInput): FdcDocument {
-  const isPreliminary = input.status === "Preliminary forecast";
-  const rowLabel = `${input.period} ${isPreliminary ? "forecast" : "actual"}`;
-  const fileStatus = isPreliminary ? " Preliminary" : "";
+  const isForecast = input.status !== "Actual";
+  const rowLabel = `${input.period} ${isForecast ? "forecast" : "actual"}`;
 
   return {
-    fileName: `FDC ${input.period}${fileStatus} Quarterly Report.pdf`,
-    title: `${input.period}${fileStatus.toLowerCase()} quarterly report`,
+    fileName: input.fileName ?? `FDC ${input.period} Quarterly Report.pdf`,
+    title: input.title ?? `${input.period} quarterly report`,
     category: "Finance",
     owner: "Finance & Strategy",
     updated: input.updated,
@@ -258,13 +261,13 @@ function quarterlyReport(input: FdcQuarterReportInput): FdcDocument {
           "PERIOD | OPERATING CASH FLOW | NRR | CUSTOMERS | EMPLOYEES",
           `${rowLabel} | ${input.operatingCashFlow} | ${input.nrr} | ${input.customers} | ${input.employees}`,
           "",
-          `${input.period} revenue ${isPreliminary ? "is forecast at" : "was"} $${input.revenue} million versus a $${input.planRevenue} million plan.`,
-          `Exit ARR ${isPreliminary ? "is forecast at" : "was"} $${input.exitArr} million.`,
-          `Gross margin ${isPreliminary ? "is forecast at" : "was"} ${input.grossMargin}.`,
-          `Operating income ${isPreliminary ? "is forecast at" : "was"} $${input.operatingIncome} million.`,
-          `Operating cash flow ${isPreliminary ? "is forecast at" : "was"} $${input.operatingCashFlow} million.`,
-          `Net revenue retention ${isPreliminary ? "is forecast at" : "was"} ${input.nrr}.`,
-          `FDC ${isPreliminary ? "expects to end" : "ended"} ${input.period} with ${input.customers} customers and ${input.employees} employees.`,
+          `${input.period} revenue ${isForecast ? "is forecast at" : "was"} $${input.revenue} million versus a $${input.planRevenue} million plan.`,
+          `Exit ARR ${isForecast ? "is forecast at" : "was"} $${input.exitArr} million.`,
+          `Gross margin ${isForecast ? "is forecast at" : "was"} ${input.grossMargin}.`,
+          `Operating income ${isForecast ? "is forecast at" : "was"} $${input.operatingIncome} million.`,
+          `Operating cash flow ${isForecast ? "is forecast at" : "was"} $${input.operatingCashFlow} million.`,
+          `Net revenue retention ${isForecast ? "is forecast at" : "was"} ${input.nrr}.`,
+          `FDC ${isForecast ? "expects to end" : "ended"} ${input.period} with ${input.customers} customers and ${input.employees} employees.`,
         ],
       },
       {
@@ -282,11 +285,11 @@ function quarterlyReport(input: FdcQuarterReportInput): FdcDocument {
           `Gross ARR churn | ${input.grossChurn}`,
           `New customers | ${input.newCustomers}`,
           "",
-          `Subscription revenue ${isPreliminary ? "is forecast at" : "was"} $${input.subscriptionRevenue} million.`,
-          `Professional services revenue ${isPreliminary ? "is forecast at" : "was"} $${input.servicesRevenue} million.`,
-          `FDC ${isPreliminary ? "expects" : "signed"} $${input.newArr} million of new ARR and $${input.bookings} million of total bookings.`,
-          `Expansion ARR ${isPreliminary ? "is forecast at" : "was"} $${input.expansionArr} million; gross ARR churn ${isPreliminary ? "is forecast at" : "was"} $${input.grossChurn} million.`,
-          `FDC ${isPreliminary ? "expects to add" : "added"} ${input.newCustomers} new customers during ${input.period}.`,
+          `Subscription revenue ${isForecast ? "is forecast at" : "was"} $${input.subscriptionRevenue} million.`,
+          `Professional services revenue ${isForecast ? "is forecast at" : "was"} $${input.servicesRevenue} million.`,
+          `FDC ${isForecast ? "expects" : "signed"} $${input.newArr} million of new ARR and $${input.bookings} million of total bookings.`,
+          `Expansion ARR ${isForecast ? "is forecast at" : "was"} $${input.expansionArr} million; gross ARR churn ${isForecast ? "is forecast at" : "was"} $${input.grossChurn} million.`,
+          `FDC ${isForecast ? "expects to add" : "added"} ${input.newCustomers} new customers during ${input.period}.`,
           "",
           "QUARTER HIGHLIGHTS",
           ...input.highlights,
@@ -304,10 +307,10 @@ function quarterlyReport(input: FdcQuarterReportInput): FdcDocument {
           `General and administrative | ${input.generalAdministrative}`,
           `Cloud infrastructure and AI inference | ${input.cloudInfrastructure}`,
           "",
-          `Research and development expense ${isPreliminary ? "is forecast at" : "was"} $${input.researchDevelopment} million.`,
-          `Sales and marketing expense ${isPreliminary ? "is forecast at" : "was"} $${input.salesMarketing} million.`,
-          `General and administrative expense ${isPreliminary ? "is forecast at" : "was"} $${input.generalAdministrative} million.`,
-          `Cloud infrastructure and AI inference cost ${isPreliminary ? "is forecast at" : "was"} $${input.cloudInfrastructure} million.`,
+          `Research and development expense ${isForecast ? "is forecast at" : "was"} $${input.researchDevelopment} million.`,
+          `Sales and marketing expense ${isForecast ? "is forecast at" : "was"} $${input.salesMarketing} million.`,
+          `General and administrative expense ${isForecast ? "is forecast at" : "was"} $${input.generalAdministrative} million.`,
+          `Cloud infrastructure and AI inference cost ${isForecast ? "is forecast at" : "was"} $${input.cloudInfrastructure} million.`,
           "",
           "CUSTOMER OPERATIONS",
           `Support tickets: ${input.supportTickets}. Customer satisfaction: ${input.csat}.`,
@@ -586,6 +589,49 @@ const fdcQuarterlyReports: FdcDocument[] = [
       "This report is preliminary; June closes and usage adjustments can change final results.",
       "BluePeak Foods Europe remains in security review.",
       "Q2 revenue depends on two implementations reaching acceptance before June 30.",
+    ],
+  }),
+  quarterlyReport({
+    period: "Q3 2026",
+    status: "Estimated forecast",
+    fileName: "FDC Estimated Q3 2026 Results.pdf",
+    title: "Estimated Q3 2026 results",
+    updated: "Jun 6, 2026",
+    cutoff: "June 6, 2026 planning estimate",
+    revenue: "22.8",
+    planRevenue: "22.5",
+    exitArr: "95.0",
+    grossMargin: "77%",
+    operatingIncome: "3.0",
+    operatingCashFlow: "3.4",
+    nrr: "124%",
+    customers: "465",
+    employees: "306",
+    subscriptionRevenue: "21.0",
+    servicesRevenue: "1.8",
+    newArr: "5.8",
+    bookings: "8.6",
+    newCustomers: "22",
+    expansionArr: "4.0",
+    grossChurn: "0.8",
+    researchDevelopment: "6.2",
+    salesMarketing: "7.5",
+    generalAdministrative: "4.0",
+    cloudInfrastructure: "3.2",
+    supportTickets: "1020",
+    csat: "95%",
+    sla: "98.8%",
+    nextQuarterRevenue: "24.2",
+    nextQuarterArr: "100.5",
+    highlights: [
+      "The estimate assumes the Q2 implementation backlog clears before July 15.",
+      "LedgerLens enterprise expansion is expected to remain the largest source of ARR growth.",
+      "FieldSync offline mobile mode is planned for phased availability in August.",
+    ],
+    risks: [
+      "These are planning estimates, not reported results, and can change before quarter close.",
+      "The estimate depends on three enterprise implementations reaching acceptance in September.",
+      "EU data residency work may require additional security and infrastructure spending.",
     ],
   }),
 ];

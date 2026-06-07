@@ -35,11 +35,12 @@ Full approved design/plan (outside the repo): `~/.gstack/projects/paige/stanleyh
   parse results by file hash, reconstructs page-specific Markdown, creates bounded Moss
   documents carrying `{sourceFile, page, sourceUrl}`, synchronizes the `paige-docs` index, then loads
   it and verifies a real query returns citation metadata.
-- **FDC demo corpus is complete:** `bun run demo:seed` generates 14 PDFs from
-  `src/data/fdc.ts`, including separate Q1-Q4 2025 reports plus Q1 and preliminary Q2 2026
-  reports. It copies them to the public demo library, parses every page through Unsiloed,
-  and indexes 40 page-cited Moss documents. The primary demo prompts summarize the latest
-  Q2 report and compare Q2 2026 with Q2 2025 using a grounded two-source chart.
+- **FDC demo corpus is complete:** `bun run demo:seed` generates 15 PDFs from
+  `src/data/fdc.ts`, including separate Q1-Q4 2025 reports, Q1 and Q2 2026 reports,
+  and estimated Q3 2026 results. It copies them to the public demo library, parses every page through Unsiloed,
+  and indexes 44 page-cited Moss documents. The primary demo prompts summarize the latest
+  Q2 report, answer relative-period questions such as "quarter 2 last year," and build
+  grounded charts across all four 2025 quarterly reports.
 - **`agent/`** — a Python **LiveKit-Agents** worker (the original "Paige as a real participant"
   design: Deepgram STT + MiniMax TTS). **PARKED.** We switched to browser STT because Deepgram
   signup was blocked. It's import-verified (livekit-agents 1.5.17) but never run live (needs
