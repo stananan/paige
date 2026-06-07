@@ -1,7 +1,7 @@
 # Never upload secrets or the local corpus to Vercel's build.
 # (Set env vars in the Vercel project settings instead.)
 .env*
-data/
+/data/
 .claude/
 agent/
 
