@@ -32,6 +32,7 @@ export const env = {
     baseUrl: optional("TRUEFOUNDRY_BASE_URL"),
     model: optional("TRUEFOUNDRY_MODEL"),
   },
+  deepgram: { apiKey: optional("DEEPGRAM_API_KEY") },
   minimax: { apiKey: optional("MINIMAX_API_KEY") },
   qwen: { apiKey: optional("DASHSCOPE_API_KEY") ?? optional("QWEN_API_KEY") },
 };

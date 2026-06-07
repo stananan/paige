@@ -101,7 +101,7 @@ describe("raceImageProviders", () => {
     });
     expect(image.model).toBe("Qwen");
     expect(image.contentType).toBe("image/png");
-    expect(image.dataUrl.startsWith("data:image/png;base64,")).toBe(true);
+    expect(image.bytes).toEqual(new Uint8Array([137, 80, 78, 71]));
   });
 
   test("returns the MiniMax image when Qwen fails", async () => {
@@ -111,7 +111,7 @@ describe("raceImageProviders", () => {
     });
     expect(image.model).toBe("MiniMax");
     expect(image.contentType).toBe("image/jpeg");
-    expect(image.dataUrl.startsWith("data:image/jpeg;base64,")).toBe(true);
+    expect(image.bytes).toEqual(new Uint8Array([255, 216, 255]));
   });
 
   test("throws when every provider fails", async () => {

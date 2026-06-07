@@ -11,8 +11,7 @@ type Environment = Record<string, string | undefined>;
 export type ImageProvider = "Qwen" | "MiniMax";
 
 export interface RacedImage {
-  /** A self-contained data: URL so the browser needs no second request. */
-  dataUrl: string;
+  bytes: Uint8Array;
   contentType: string;
   model: ImageProvider;
   requestId: string;
@@ -26,11 +25,13 @@ export interface ImageRaceDependencies {
 const MAX_TOPIC_CHARACTERS = 240;
 
 /**
- * Turn a spoken answer or question into a safe, label-free illustration prompt.
- * The generated image is a flourish, never evidence — so we keep it abstract and
- * explicitly free of text, numbers, and charts (which models render unreliably).
+ * Turn a spoken request into a safe, label-free data-visual prompt. Exact source
+ * values are rendered by the app as HTML over the image, never by the image model.
  */
-export function buildIllustrationPrompt(topic: string): string {
+export function buildIllustrationPrompt(
+  topic: string,
+  chart?: { labels: string[]; values: number[]; title: string } | null,
+): string {
   const cleaned = topic
     .replace(/\bQ[1-4]\b/gi, "quarter")
     .replace(/[$€£]?\d[\d,.]*(?:%|[KMB])?/gi, "")
@@ -38,15 +39,16 @@ export function buildIllustrationPrompt(topic: string): string {
     .trim()
     .slice(0, MAX_TOPIC_CHARACTERS);
   const subject = cleaned || "a modern company meeting";
+  const composition =
+    chart && chart.values.length > 0
+      ? `Use a polished executive data-visualization composition with exactly ${chart.values.length} unlabeled vertical forms and clear visual hierarchy.`
+      : "Use a polished executive data-visualization composition with clean geometric forms.";
   return [
-    `A clean, modern editorial illustration that evokes: ${subject}.`,
-    "Calm professional palette, soft depth, abstract and conceptual, suitable as a subtle chart backdrop.",
-    "No text, no words, no letters, no numbers, no charts, no graphs, no logos.",
+    `Create a clean, modern editorial visual that evokes: ${subject}.`,
+    composition,
+    "Calm professional palette, strong contrast, soft depth, premium boardroom presentation style.",
+    "No text, no words, no letters, no numbers, no axis labels, no logos.",
   ].join(" ");
-}
-
-function toDataUrl(bytes: Uint8Array, contentType: string): string {
-  return `data:${contentType};base64,${Buffer.from(bytes).toString("base64")}`;
 }
 
 function hasQwenKey(environment: Environment): boolean {
@@ -79,7 +81,7 @@ export async function raceImageProviders(
         { prompt },
         { environment, fetchImpl, signal: controller.signal },
       ).then((result) => ({
-        dataUrl: toDataUrl(result.bytes, result.contentType),
+        bytes: result.bytes,
         contentType: result.contentType,
         model: "Qwen" as const,
         requestId: result.requestId,
@@ -92,7 +94,7 @@ export async function raceImageProviders(
         { prompt },
         { environment, fetchImpl, signal: controller.signal },
       ).then((result) => ({
-        dataUrl: toDataUrl(result.bytes, result.contentType),
+        bytes: result.bytes,
         contentType: result.contentType,
         model: "MiniMax" as const,
         requestId: result.requestId,

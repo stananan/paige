@@ -9,7 +9,32 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 const MAX_TOPIC_LENGTH = 500;
-const MAX_BODY_BYTES = 4_096;
+const MAX_BODY_BYTES = 8_192;
+
+function parsedChart(value: unknown): {
+  title: string;
+  labels: string[];
+  values: number[];
+} | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const chart = value as Record<string, unknown>;
+  if (
+    typeof chart.title !== "string" ||
+    !Array.isArray(chart.labels) ||
+    !chart.labels.every((label) => typeof label === "string") ||
+    !Array.isArray(chart.values) ||
+    !chart.values.every((number) => typeof number === "number") ||
+    chart.labels.length !== chart.values.length ||
+    chart.values.length > 12
+  ) {
+    return null;
+  }
+  return {
+    title: chart.title.slice(0, 160),
+    labels: chart.labels.map((label) => label.slice(0, 80)),
+    values: chart.values,
+  };
+}
 
 export async function POST(request: NextRequest) {
   const contentLength = Number(request.headers.get("content-length") || 0);
@@ -18,9 +43,11 @@ export async function POST(request: NextRequest) {
   }
 
   let topic: string;
+  let chart: ReturnType<typeof parsedChart>;
   try {
-    const body = (await request.json()) as { topic?: unknown };
+    const body = (await request.json()) as { topic?: unknown; chart?: unknown };
     topic = typeof body.topic === "string" ? body.topic.trim() : "";
+    chart = parsedChart(body.chart);
   } catch {
     return NextResponse.json({ error: "Body must be JSON: { topic }" }, { status: 400 });
   }
@@ -33,16 +60,17 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const image = await raceImageProviders(buildIllustrationPrompt(topic));
-    return NextResponse.json(
-      {
-        dataUrl: image.dataUrl,
-        contentType: image.contentType,
-        model: image.model,
-        requestId: image.requestId,
+    const image = await raceImageProviders(buildIllustrationPrompt(topic, chart));
+    const bytes = Uint8Array.from(image.bytes).buffer;
+    return new Response(bytes, {
+      headers: {
+        "Content-Type": image.contentType,
+        "Content-Length": String(image.bytes.byteLength),
+        "Cache-Control": "no-store",
+        "X-Paige-Image-Model": image.model,
+        "X-Paige-Image-Request-Id": image.requestId,
       },
-      { headers: { "Cache-Control": "no-store" } },
-    );
+    });
   } catch (error) {
     console.error("[api/image] all providers failed", error);
     return NextResponse.json(

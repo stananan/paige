@@ -17,15 +17,22 @@ export type PaigeRoomEvent =
       active: boolean;
     })
   | (PaigeEventBase & {
+      type: "transcript";
+      speaker: string;
+      text: string;
+    })
+  | (PaigeEventBase & {
       type: "thinking";
       interactionId: string;
       question: string;
+      speaker: string;
       sessionActive: boolean;
     })
   | (PaigeEventBase & {
       type: "answer";
       interactionId: string;
       question: string;
+      speaker: string;
       answer: PaigeAnswer;
       sessionActive: boolean;
     })
@@ -51,7 +58,9 @@ export type PaigeRoomEvent =
       answer: PaigeAnswer | null;
       history: PaigeConversationTurn[];
       updatedAt: number;
+      speaker: string;
       imageName?: string;
+      imageStatus?: "loading" | "ready" | "failed";
     });
 
 export type PaigeTranscriptIntent =
@@ -63,6 +72,9 @@ export type PaigeTranscriptIntent =
 const WAKE_WORD = /\b(?:paige|pages|page|padge|paij)\b/i;
 const END_SESSION =
   /\b(?:thank you|thanks)\s+(?:paige|pages|page|padge|paij)\b|\b(?:that(?:'s| is) it|we(?:'re| are) done|stop listening)(?:\s+(?:paige|pages|page|padge|paij))?\b/i;
+const MIN_SUBSTANTIVE_WORDS = 3;
+const CASUAL_ONLY =
+  /^(?:u+h+|u+m+|h+m+|m+h+m+|yeah|yep|yes|no|okay|ok|right|sure|cool|great|nice|wow|exactly|agreed|interesting|got it|i see|i agree|i understand|that makes sense|that(?:'s| is) (?:interesting|helpful|good|great|right)|sounds good|fair enough|you know|let(?:'s| us) see)[.!?,\s]*$/i;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -152,9 +164,17 @@ export function decodePaigeRoomEvent(payload: Uint8Array): PaigeRoomEvent | null
     return value as unknown as PaigeRoomEvent;
   }
   if (
+    value.type === "transcript" &&
+    typeof value.speaker === "string" &&
+    typeof value.text === "string"
+  ) {
+    return value as unknown as PaigeRoomEvent;
+  }
+  if (
     value.type === "thinking" &&
     typeof value.interactionId === "string" &&
     typeof value.question === "string" &&
+    typeof value.speaker === "string" &&
     typeof value.sessionActive === "boolean"
   ) {
     return value as unknown as PaigeRoomEvent;
@@ -163,6 +183,7 @@ export function decodePaigeRoomEvent(payload: Uint8Array): PaigeRoomEvent | null
     value.type === "answer" &&
     typeof value.interactionId === "string" &&
     typeof value.question === "string" &&
+    typeof value.speaker === "string" &&
     isPaigeAnswer(value.answer) &&
     typeof value.sessionActive === "boolean"
   ) {
@@ -194,7 +215,12 @@ export function decodePaigeRoomEvent(payload: Uint8Array): PaigeRoomEvent | null
     (value.answer === null || isPaigeAnswer(value.answer)) &&
     isHistory(value.history) &&
     typeof value.updatedAt === "number" &&
-    (value.imageName === undefined || typeof value.imageName === "string")
+    typeof value.speaker === "string" &&
+    (value.imageName === undefined || typeof value.imageName === "string") &&
+    (value.imageStatus === undefined ||
+      value.imageStatus === "loading" ||
+      value.imageStatus === "ready" ||
+      value.imageStatus === "failed")
   ) {
     return value as unknown as PaigeRoomEvent;
   }
@@ -204,6 +230,7 @@ export function decodePaigeRoomEvent(payload: Uint8Array): PaigeRoomEvent | null
 export function transcriptIntent(
   transcript: string,
   sessionActive: boolean,
+  minimumWords = MIN_SUBSTANTIVE_WORDS,
 ): PaigeTranscriptIntent {
   const normalized = transcript.trim();
   if (!normalized) return { type: "ignore" };
@@ -216,11 +243,32 @@ export function transcriptIntent(
       .slice((wake.index ?? 0) + wake[0].length)
       .replace(/^[\s,.:!?-]+/, "")
       .trim();
-    return command
+    return command && transcriptWordCount(normalized) >= minimumWords
       ? { type: "ask", command, activate: !sessionActive }
       : { type: "activate" };
   }
+  if (!isSubstantiveTranscript(normalized, minimumWords)) {
+    return { type: "ignore" };
+  }
   return { type: "ask", command: normalized, activate: false };
+}
+
+export function transcriptWordCount(transcript: string): number {
+  return transcript
+    .trim()
+    .split(/\s+/)
+    .filter((word) => /[\p{L}\p{N}]/u.test(word)).length;
+}
+
+export function isSubstantiveTranscript(
+  transcript: string,
+  minimumWords = MIN_SUBSTANTIVE_WORDS,
+): boolean {
+  const normalized = transcript.trim();
+  return (
+    transcriptWordCount(normalized) >= minimumWords &&
+    !CASUAL_ONLY.test(normalized)
+  );
 }
 
 export function appendConversationTurn(

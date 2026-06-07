@@ -4,7 +4,9 @@ import {
   decodePaigeRoomEvent,
   encodePaigeRoomEvent,
   interactionIdFromImageName,
+  isSubstantiveTranscript,
   sharedImageFileName,
+  transcriptWordCount,
   transcriptIntent,
   type PaigeRoomEvent,
 } from "./paige-room";
@@ -17,6 +19,7 @@ describe("Paige room protocol", () => {
       eventId: "event-1",
       interactionId: "interaction-1",
       question: "What was Q2 revenue?",
+      speaker: "stan",
       sessionActive: true,
       answer: {
         answer: "FDC reported $16.8 million in Q2 revenue.",
@@ -49,6 +52,7 @@ describe("Paige room protocol", () => {
       eventId: "event-unsafe",
       interactionId: "interaction-unsafe",
       question: "Show the report",
+      speaker: "stan",
       sessionActive: true,
       answer: {
         answer: "Here it is.",
@@ -82,6 +86,25 @@ describe("Paige room protocol", () => {
       activate: false,
     });
     expect(transcriptIntent("What about ARR?", false)).toEqual({ type: "ignore" });
+  });
+
+  test("ignores filler and requires three substantive words for voice follow-ups", () => {
+    expect(transcriptIntent("yeah", true)).toEqual({ type: "ignore" });
+    expect(transcriptIntent("that makes sense", true)).toEqual({ type: "ignore" });
+    expect(transcriptIntent("what about", true)).toEqual({ type: "ignore" });
+    expect(transcriptIntent("what about revenue", true)).toEqual({
+      type: "ask",
+      command: "what about revenue",
+      activate: false,
+    });
+    expect(transcriptIntent("show revenue", true, 1)).toEqual({
+      type: "ask",
+      command: "show revenue",
+      activate: false,
+    });
+    expect(transcriptWordCount("Paige, show Q2 revenue.")).toBe(4);
+    expect(isSubstantiveTranscript("okay")).toBe(false);
+    expect(isSubstantiveTranscript("hold on a second")).toBe(true);
   });
 
   test("recognizes natural session-ending phrases", () => {

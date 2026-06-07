@@ -7,6 +7,7 @@ import {
 import {
   ConnectionState,
   RoomEvent,
+  Track,
   type Participant,
 } from "livekit-client";
 import {
@@ -22,9 +23,15 @@ import type {
   PaigeConversationTurn,
 } from "@/lib/paige-answer";
 import {
+  DeepgramParticipantTranscriber,
+  supportsParticipantTranscription,
+  type ParticipantTranscript,
+} from "@/lib/deepgram-browser";
+import {
   appendConversationTurn,
   decodePaigeRoomEvent,
   encodePaigeRoomEvent,
+  isSubstantiveTranscript,
   interactionIdFromImageName,
   PAIGE_DATA_TOPIC,
   PAIGE_IMAGE_TOPIC,
@@ -32,7 +39,6 @@ import {
   transcriptIntent,
   type PaigeRoomEvent,
 } from "@/lib/paige-room";
-import { getSpeechRecognition, type SpeechRecognitionLike } from "@/lib/speech";
 
 export interface PaigeState {
   supported: boolean;
@@ -41,6 +47,7 @@ export interface PaigeState {
   speaking: boolean;
   sessionActive: boolean;
   heard: string;
+  heardBy: string;
   reply: PaigeAnswer | null;
   error: string;
   /** Reply carries something worth presenting inside Paige's tile. */
@@ -48,6 +55,7 @@ export interface PaigeState {
   visualUrl: string;
   visualModel: string;
   visualLoading: boolean;
+  visualFailed: boolean;
   input: string;
   setInput: (value: string) => void;
   toggle: () => void;
@@ -60,13 +68,19 @@ function isGrounded(reply: PaigeAnswer | null): boolean {
   return Boolean(reply && (reply.citations.length > 0 || reply.chart));
 }
 
-function requestsGeneratedBackdrop(question: string, answer: PaigeAnswer): boolean {
+function requestsGeneratedVisual(question: string, answer: PaigeAnswer): boolean {
   return Boolean(
-    answer.chart &&
+    (answer.chart || answer.citations.length > 0) &&
       /\b(?:visual|visuali[sz]e|chart|graph|compare|comparison|trend)\b/i.test(
         question,
       ),
   );
+}
+
+function spokenAnswer(answer: PaigeAnswer, visualRequested: boolean): string {
+  return visualRequested
+    ? `${answer.answer} I have the data. Give me a second to finish the visual.`
+    : answer.answer;
 }
 
 function imageModelFromName(name: string): string {
@@ -81,8 +95,9 @@ interface PaigeDataMessage {
 
 const ignoreRoomMessage = () => {};
 
-export function usePaige(): PaigeState {
+export function usePaige(liveKitToken: string): PaigeState {
   const room = useRoomContext();
+  const localIdentity = room.localParticipant.identity;
   const roomMessageHandlerRef = useRef<(message: PaigeDataMessage) => void>(
     ignoreRoomMessage,
   );
@@ -90,33 +105,40 @@ export function usePaige(): PaigeState {
     roomMessageHandlerRef.current(message);
   }, []);
   const { send } = useDataChannel(PAIGE_DATA_TOPIC, onRoomMessage);
-  const [supported, setSupported] = useState(true);
-  const [listening, setListening] = useState(false);
+  const [supported] = useState(() => supportsParticipantTranscription());
+  const [listening, setListening] = useState(() =>
+    supportsParticipantTranscription(),
+  );
   const [heard, setHeard] = useState("");
+  const [heardBy, setHeardBy] = useState("");
   const [reply, setReply] = useState<PaigeAnswer | null>(null);
   const [speaking, setSpeaking] = useState(false);
   const [sessionActive, setSessionActive] = useState(false);
   const [visualUrl, setVisualUrl] = useState("");
   const [visualModel, setVisualModel] = useState("");
   const [visualLoading, setVisualLoading] = useState(false);
+  const [visualFailed, setVisualFailed] = useState(false);
   const [input, setInput] = useState("");
   const [thinking, setThinking] = useState(false);
   const [error, setError] = useState("");
 
-  const recogRef = useRef<SpeechRecognitionLike | null>(null);
+  const transcriberRef = useRef<DeepgramParticipantTranscriber | null>(null);
+  const transcriptHandlerRef = useRef<(result: ParticipantTranscript) => void>(
+    () => {},
+  );
   const speakingRef = useRef(false);
-  const wantListeningRef = useRef(false);
   const requestRef = useRef<AbortController | null>(null);
   const speechAbortRef = useRef<AbortController | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const finishSpeechRef = useRef<(() => void) | null>(null);
-  const speechInterruptedRef = useRef(false);
-  const recognitionCooldownUntilRef = useRef(0);
   const sessionActiveRef = useRef(false);
   const sessionUpdatedAtRef = useRef(0);
   const currentInteractionIdRef = useRef("");
-  const currentQuestionRef = useRef("");
   const interactionUpdatedAtRef = useRef(0);
+  const presentationInteractionIdRef = useRef("");
+  const presentationQuestionRef = useRef("");
+  const presentationSpeakerRef = useRef("");
+  const presentationUpdatedAtRef = useRef(0);
   const replyRef = useRef<PaigeAnswer | null>(null);
   const historyRef = useRef<PaigeConversationTurn[]>([]);
   const processedEventsRef = useRef(new Set<string>());
@@ -135,11 +157,12 @@ export function usePaige(): PaigeState {
     setVisualUrl("");
     setVisualModel("");
     setVisualLoading(false);
+    setVisualFailed(false);
   }, []);
 
   const installVisual = useCallback(
     (blob: Blob, name: string, interactionId: string, model?: string) => {
-      if (interactionId !== currentInteractionIdRef.current) return;
+      if (interactionId !== presentationInteractionIdRef.current) return;
       if (visualUrlRef.current) URL.revokeObjectURL(visualUrlRef.current);
       const url = URL.createObjectURL(blob);
       const resolvedModel = model || imageModelFromName(name);
@@ -153,12 +176,12 @@ export function usePaige(): PaigeState {
       setVisualUrl(url);
       setVisualModel(resolvedModel);
       setVisualLoading(false);
+      setVisualFailed(false);
     },
     [],
   );
 
-  const stopSpeech = useCallback((interrupted = true) => {
-    speechInterruptedRef.current = interrupted;
+  const stopSpeech = useCallback(() => {
     speechAbortRef.current?.abort();
     speechAbortRef.current = null;
     const audio = audioRef.current;
@@ -173,7 +196,6 @@ export function usePaige(): PaigeState {
       stopSpeech();
       const controller = new AbortController();
       speechAbortRef.current = controller;
-      speechInterruptedRef.current = false;
       let revealed = false;
       const reveal = () => {
         if (
@@ -233,9 +255,6 @@ export function usePaige(): PaigeState {
         if (url) URL.revokeObjectURL(url);
         setSpeaking(false);
         speakingRef.current = false;
-        if (!speechInterruptedRef.current) {
-          recognitionCooldownUntilRef.current = Date.now() + 650;
-        }
       }
     },
     [stopSpeech],
@@ -303,6 +322,7 @@ export function usePaige(): PaigeState {
     (
       interactionId: string,
       question: string,
+      speaker: string,
       at: number,
       abortCurrentRequest = true,
     ) => {
@@ -312,23 +332,21 @@ export function usePaige(): PaigeState {
         requestRef.current = null;
       }
       stopSpeech();
-      clearVisual();
       interactionUpdatedAtRef.current = at;
       currentInteractionIdRef.current = interactionId;
-      currentQuestionRef.current = question;
-      replyRef.current = null;
       setHeard(question);
-      setReply(null);
+      setHeardBy(speaker);
       setError("");
       setThinking(true);
     },
-    [clearVisual, stopSpeech],
+    [stopSpeech],
   );
 
   const applyAnswer = useCallback(
     (
       interactionId: string,
       question: string,
+      speaker: string,
       answer: PaigeAnswer,
       at: number,
       playAudio = true,
@@ -336,65 +354,88 @@ export function usePaige(): PaigeState {
       if (at < interactionUpdatedAtRef.current) return;
       interactionUpdatedAtRef.current = at;
       currentInteractionIdRef.current = interactionId;
-      currentQuestionRef.current = question;
       historyRef.current = appendConversationTurn(historyRef.current, {
         question,
         answer: answer.answer,
       });
-      setVisualLoading(requestsGeneratedBackdrop(question, answer));
+      const replacePresentation =
+        isGrounded(answer) || !isGrounded(replyRef.current);
+      const visualRequested = requestsGeneratedVisual(question, answer);
+
+      if (replacePresentation) {
+        if (presentationInteractionIdRef.current !== interactionId) {
+          clearVisual();
+        }
+        presentationInteractionIdRef.current = interactionId;
+        presentationQuestionRef.current = question;
+        presentationSpeakerRef.current = speaker;
+        presentationUpdatedAtRef.current = at;
+        setVisualLoading(visualRequested);
+        setVisualFailed(false);
+      }
 
       const reveal = () => {
-        replyRef.current = answer;
-        setReply(answer);
+        if (replacePresentation) {
+          replyRef.current = answer;
+          setReply(answer);
+        }
         setThinking(false);
       };
-      if (playAudio) void speak(answer.answer, interactionId, reveal);
+      if (playAudio) {
+        void speak(spokenAnswer(answer, visualRequested), interactionId, reveal);
+      }
       else reveal();
     },
-    [speak],
+    [clearVisual, speak],
   );
 
   const generateSharedVisual = useCallback(
-    async (interactionId: string, question: string) => {
+    async (
+      interactionId: string,
+      question: string,
+      answer: PaigeAnswer,
+    ) => {
       try {
         const response = await fetch("/api/image", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ topic: question }),
+          body: JSON.stringify({ topic: question, chart: answer.chart }),
         });
-        const body = (await response.json()) as {
-          dataUrl?: string;
-          contentType?: string;
-          model?: string;
-          error?: string;
-        };
-        if (!response.ok || !body.dataUrl || !body.contentType || !body.model) {
+        if (!response.ok) {
+          const body = (await response.json().catch(() => ({}))) as {
+            error?: string;
+          };
           throw new Error(body.error || "Image generation failed");
         }
-        const blob = await (await fetch(body.dataUrl)).blob();
+        const blob = await response.blob();
+        const contentType =
+          response.headers.get("content-type") || blob.type || "image/png";
+        const model =
+          response.headers.get("x-paige-image-model") || "AI";
         const name = sharedImageFileName(
           interactionId,
-          body.model,
-          body.contentType,
+          model,
+          contentType,
         );
-        installVisual(blob, name, interactionId, body.model);
-        const file = new File([blob], name, { type: body.contentType });
+        installVisual(blob, name, interactionId, model);
+        const file = new File([blob], name, { type: contentType });
         await room.localParticipant.sendFile(file, {
           topic: PAIGE_IMAGE_TOPIC,
-          mimeType: body.contentType,
+          mimeType: contentType,
         });
         await publishEvent({
           ...eventBase(),
           type: "image",
           interactionId,
           status: "ready",
-          model: body.model,
+          model,
           imageName: name,
         });
       } catch (reason) {
         console.error("[paige] shared image generation failed", reason);
-        if (currentInteractionIdRef.current === interactionId) {
+        if (presentationInteractionIdRef.current === interactionId) {
           setVisualLoading(false);
+          setVisualFailed(true);
         }
         await publishEvent({
           ...eventBase(),
@@ -408,7 +449,7 @@ export function usePaige(): PaigeState {
   );
 
   const ask = useCallback(
-    async (command: string) => {
+    async (command: string, speaker = localIdentity) => {
       const q = command.trim();
       if (!q) return;
 
@@ -420,9 +461,10 @@ export function usePaige(): PaigeState {
         type: "thinking",
         interactionId,
         question: q,
+        speaker,
         sessionActive: true,
       };
-      applyThinking(interactionId, q, thinkingEvent.at, false);
+      applyThinking(interactionId, q, speaker, thinkingEvent.at, false);
       void publishEvent(thinkingEvent);
 
       const controller = new AbortController();
@@ -445,13 +487,14 @@ export function usePaige(): PaigeState {
           type: "answer",
           interactionId,
           question: q,
+          speaker,
           answer: body,
           sessionActive: sessionActiveRef.current,
         };
-        applyAnswer(interactionId, q, body, answerEvent.at);
+        applyAnswer(interactionId, q, speaker, body, answerEvent.at);
         void publishEvent(answerEvent);
-        if (requestsGeneratedBackdrop(q, body)) {
-          void generateSharedVisual(interactionId, q);
+        if (requestsGeneratedVisual(q, body)) {
+          void generateSharedVisual(interactionId, q, body);
         }
       } catch (reason) {
         if (controller.signal.aborted) return;
@@ -474,22 +517,36 @@ export function usePaige(): PaigeState {
       applyThinking,
       eventBase,
       generateSharedVisual,
+      localIdentity,
       publishEvent,
       setSharedSession,
     ],
   );
 
   const handleTranscript = useCallback(
-    (transcript: string, isFinal: boolean) => {
-      if (
-        Date.now() < recognitionCooldownUntilRef.current &&
-        !room.localParticipant.isSpeaking
-      ) {
-        return;
-      }
-      if (speakingRef.current && !room.localParticipant.isSpeaking) return;
+    (transcript: string, speaker: string, words: number) => {
       setHeard(transcript);
-      if (!isFinal) return;
+      setHeardBy(speaker);
+      void publishEvent({
+        ...eventBase(),
+        type: "transcript",
+        speaker,
+        text: transcript,
+      });
+
+      if (
+        words >= 3 &&
+        isSubstantiveTranscript(transcript) &&
+        speakingRef.current
+      ) {
+        stopSpeech();
+        void publishEvent({
+          ...eventBase(),
+          type: "interrupt",
+          interactionId: currentInteractionIdRef.current || undefined,
+        });
+      }
+
       const intent = transcriptIntent(transcript, sessionActiveRef.current);
       if (intent.type === "end") {
         setSharedSession(false);
@@ -502,78 +559,89 @@ export function usePaige(): PaigeState {
       if (intent.type === "ask") {
         if (intent.activate) setSharedSession(true);
         stopSpeech();
-        void ask(intent.command);
+        void ask(intent.command, speaker);
       }
     },
-    [ask, room, setSharedSession, stopSpeech],
+    [
+      ask,
+      eventBase,
+      publishEvent,
+      setSharedSession,
+      stopSpeech,
+    ],
+  );
+
+  const handleInterruptionCandidate = useCallback(
+    (result: ParticipantTranscript) => {
+      if (
+        !speakingRef.current ||
+        result.words < 3 ||
+        !isSubstantiveTranscript(result.transcript)
+      ) {
+        return;
+      }
+      stopSpeech();
+      void publishEvent({
+        ...eventBase(),
+        type: "interrupt",
+        interactionId: currentInteractionIdRef.current || undefined,
+      });
+    },
+    [eventBase, publishEvent, stopSpeech],
   );
 
   useEffect(() => {
-    const recog = getSpeechRecognition();
-    if (!recog) {
-      const timeout = window.setTimeout(() => setSupported(false), 0);
-      return () => window.clearTimeout(timeout);
-    }
-    recogRef.current = recog;
-
-    recog.onstart = () => setListening(true);
-    recog.onresult = (e) => {
-      let interim = "";
-      let final = "";
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        const result = e.results[i];
-        if (result.isFinal) final += result[0].transcript;
-        else interim += result[0].transcript;
-      }
-      if (final) handleTranscript(final, true);
-      else if (interim) handleTranscript(interim, false);
+    transcriptHandlerRef.current = (result) => {
+      handleTranscript(result.transcript, result.speaker, result.words);
     };
-    recog.onerror = () => {};
-    recog.onend = () => {
-      if (wantListeningRef.current) {
-        try {
-          recog.start();
-        } catch {}
-      }
+    return () => {
+      transcriptHandlerRef.current = () => {};
     };
+  }, [handleTranscript]);
 
-    wantListeningRef.current = true;
-    try {
-      recog.start();
-    } catch {}
+  useEffect(() => {
+    if (!supported) return;
+
+    const transcriber = new DeepgramParticipantTranscriber({
+      liveKitToken,
+      getTrack: () =>
+        room.localParticipant.getTrackPublication(Track.Source.Microphone)?.track
+          ?.mediaStreamTrack ?? null,
+      onTranscript: (result) => transcriptHandlerRef.current(result),
+      onInterruptionCandidate: handleInterruptionCandidate,
+      onError: (message) => setError(message),
+    });
+    transcriberRef.current = transcriber;
 
     return () => {
       requestRef.current?.abort();
       stopSpeech();
-      wantListeningRef.current = false;
-      try {
-        recog.abort();
-      } catch {}
+      transcriber.dispose();
+      if (transcriberRef.current === transcriber) {
+        transcriberRef.current = null;
+      }
     };
-  }, [handleTranscript, stopSpeech]);
+  }, [
+    handleInterruptionCandidate,
+    liveKitToken,
+    room,
+    stopSpeech,
+    supported,
+  ]);
 
   useEffect(() => {
     const handleActiveSpeakers = (speakers: Participant[]) => {
-      if (!speakingRef.current || speakers.length === 0) return;
-      stopSpeech();
-      if (
-        speakers.some(
-          (participant) =>
-            participant.identity === room.localParticipant.identity,
-        )
-      ) {
-        void publishEvent({
-          ...eventBase(),
-          type: "interrupt",
-          interactionId: currentInteractionIdRef.current || undefined,
-        });
-      }
+      const localSpeaking = speakers.some(
+        (participant) =>
+          participant.identity === room.localParticipant.identity,
+      );
+      transcriberRef.current?.setSpeaking(localSpeaking);
     };
     room.on(RoomEvent.ActiveSpeakersChanged, handleActiveSpeakers);
     return () => {
       room.off(RoomEvent.ActiveSpeakersChanged, handleActiveSpeakers);
     };
-  }, [eventBase, publishEvent, room, stopSpeech]);
+  }, [room]);
 
   useEffect(() => {
     room.registerByteStreamHandler(
@@ -597,8 +665,9 @@ export function usePaige(): PaigeState {
           );
         } catch (reason) {
           console.error("[paige] failed to receive shared image", reason);
-          if (currentInteractionIdRef.current === interactionId) {
+          if (presentationInteractionIdRef.current === interactionId) {
             setVisualLoading(false);
+            setVisualFailed(true);
           }
         }
       },
@@ -619,11 +688,17 @@ export function usePaige(): PaigeState {
       applySession(event.active, event.at);
       return;
     }
+    if (event.type === "transcript") {
+      setHeard(event.text);
+      setHeardBy(event.speaker);
+      return;
+    }
     if (event.type === "thinking") {
       applySession(event.sessionActive, event.at);
       applyThinking(
         event.interactionId,
         event.question,
+        event.speaker,
         event.at,
       );
       return;
@@ -633,6 +708,7 @@ export function usePaige(): PaigeState {
       applyAnswer(
         event.interactionId,
         event.question,
+        event.speaker,
         event.answer,
         event.at,
       );
@@ -645,13 +721,14 @@ export function usePaige(): PaigeState {
     }
     if (event.type === "image") {
       if (
-        event.interactionId === currentInteractionIdRef.current &&
+        event.interactionId === presentationInteractionIdRef.current &&
         event.status === "failed"
       ) {
         setVisualLoading(false);
+        setVisualFailed(true);
       }
       if (
-        event.interactionId === currentInteractionIdRef.current &&
+        event.interactionId === presentationInteractionIdRef.current &&
         event.status === "ready" &&
         event.model
       ) {
@@ -662,15 +739,26 @@ export function usePaige(): PaigeState {
     if (event.type === "snapshot") {
       if (event.updatedAt < interactionUpdatedAtRef.current) return;
       applySession(event.sessionActive, event.at);
-      interactionUpdatedAtRef.current = event.updatedAt;
+      interactionUpdatedAtRef.current = Math.max(
+        interactionUpdatedAtRef.current,
+        event.updatedAt,
+      );
       currentInteractionIdRef.current = event.currentInteractionId;
-      currentQuestionRef.current = event.question;
+      presentationInteractionIdRef.current = event.currentInteractionId;
+      presentationQuestionRef.current = event.question;
+      presentationSpeakerRef.current = event.speaker;
+      presentationUpdatedAtRef.current = event.updatedAt;
       historyRef.current = event.history;
       replyRef.current = event.answer;
       setHeard(event.question);
+      setHeardBy(event.speaker);
       setReply(event.answer);
       setThinking(false);
-      setVisualLoading(Boolean(event.imageName && !imageBlobRef.current));
+      setVisualLoading(
+        event.imageStatus === "loading" ||
+          Boolean(event.imageName && !imageBlobRef.current),
+      );
+      setVisualFailed(event.imageStatus === "failed");
       return;
     }
     if (event.type === "state-request") {
@@ -688,12 +776,20 @@ export function usePaige(): PaigeState {
         ...eventBase(),
         type: "snapshot",
         sessionActive: sessionActiveRef.current,
-        currentInteractionId: currentInteractionIdRef.current,
-        question: currentQuestionRef.current,
+        currentInteractionId: presentationInteractionIdRef.current,
+        question: presentationQuestionRef.current,
         answer: replyRef.current,
         history: historyRef.current,
-        updatedAt: interactionUpdatedAtRef.current,
+        updatedAt: presentationUpdatedAtRef.current,
+        speaker: presentationSpeakerRef.current,
         ...(currentImage ? { imageName: currentImage.name } : {}),
+        imageStatus: currentImage
+          ? "ready"
+          : visualLoading
+            ? "loading"
+            : visualFailed
+              ? "failed"
+              : undefined,
       };
       void publishEvent(snapshot, [requester]);
       if (currentImage) {
@@ -715,6 +811,8 @@ export function usePaige(): PaigeState {
     publishEvent,
     room,
     stopSpeech,
+    visualFailed,
+    visualLoading,
   ]);
 
   useEffect(() => {
@@ -753,19 +851,11 @@ export function usePaige(): PaigeState {
   );
 
   const toggle = useCallback(() => {
-    const recog = recogRef.current;
-    if (!recog) return;
     if (listening) {
-      wantListeningRef.current = false;
-      try {
-        recog.stop();
-      } catch {}
+      transcriberRef.current?.setEnabled(false);
       setListening(false);
     } else {
-      wantListeningRef.current = true;
-      try {
-        recog.start();
-      } catch {}
+      transcriberRef.current?.setEnabled(true);
       setListening(true);
     }
   }, [listening]);
@@ -776,8 +866,9 @@ export function usePaige(): PaigeState {
       const q = input.trim();
       if (!q) return;
       setHeard(q);
+      setHeardBy(room.localParticipant.identity);
       setInput("");
-      const intent = transcriptIntent(q, true);
+      const intent = transcriptIntent(q, true, 1);
       if (intent.type === "end") {
         setSharedSession(false);
         return;
@@ -788,9 +879,9 @@ export function usePaige(): PaigeState {
       }
       if (intent.type !== "ask") return;
       if (!sessionActiveRef.current) setSharedSession(true);
-      void ask(intent.command);
+      void ask(intent.command, room.localParticipant.identity);
     },
-    [input, ask, setSharedSession],
+    [input, ask, room, setSharedSession],
   );
 
   const dismiss = useCallback(() => {
@@ -805,12 +896,14 @@ export function usePaige(): PaigeState {
     speaking,
     sessionActive,
     heard,
+    heardBy,
     reply,
     error,
     presenting: isGrounded(reply),
     visualUrl,
     visualModel,
     visualLoading,
+    visualFailed,
     input,
     setInput,
     toggle,
@@ -874,11 +967,12 @@ export function PaigeTile({ paige, compact = false }: { paige: PaigeState; compa
             {paige.reply.answer}
           </p>
           {paige.reply.chart && (
-            <AnswerChart
+            <AnswerVisual
               chart={paige.reply.chart}
               visualUrl={paige.visualUrl}
               visualModel={paige.visualModel}
               visualLoading={paige.visualLoading}
+              visualFailed={paige.visualFailed}
             />
           )}
           {paige.reply.citations[0]?.url && (
@@ -1023,7 +1117,10 @@ export function PaigeDock({ paige, onClose }: { paige: PaigeState; onClose: () =
       </p>
       {paige.heard && (
         <p className="mt-1 text-xs text-white/70">
-          <span className="text-white/40">heard:</span> {paige.heard}
+          <span className="text-white/40">
+            {paige.heardBy ? `${paige.heardBy}:` : "heard:"}
+          </span>{" "}
+          {paige.heard}
         </p>
       )}
       {paige.thinking && <p className="mt-1 text-xs text-amber-200">Searching the company documents…</p>}
@@ -1049,18 +1146,90 @@ export function PaigeDock({ paige, onClose }: { paige: PaigeState; onClose: () =
   );
 }
 
-export function AnswerChart({
+export function AnswerVisual({
   chart,
-  large = false,
   visualUrl = "",
   visualModel = "",
   visualLoading = false,
+  visualFailed = false,
 }: {
   chart: PaigeChart;
-  large?: boolean;
   visualUrl?: string;
   visualModel?: string;
   visualLoading?: boolean;
+  visualFailed?: boolean;
+}) {
+  if (visualUrl) {
+    return (
+      <figure className="relative min-h-56 overflow-hidden rounded-xl border border-white/10 bg-[#07111e]">
+        {/* The generated image supplies the visual style. Exact source values stay
+            in the HTML overlay so image models cannot rewrite the evidence. */}
+        {/* eslint-disable-next-line @next/next/no-img-element -- blob URLs cannot use next/image */}
+        <img
+          src={visualUrl}
+          alt=""
+          className="absolute inset-0 h-full w-full scale-105 object-cover blur-[6px] brightness-75 saturate-125"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#050a12] via-[#050a12]/25 to-transparent" />
+        <figcaption className="relative flex min-h-56 flex-col justify-end p-3">
+          <div className="rounded-xl border border-white/15 bg-black/65 p-3 backdrop-blur">
+            <p className="text-xs font-semibold text-white">{chart.title}</p>
+            <p className="mt-0.5 text-[9px] text-white/55">
+              {chart.unit} · Exact values from cited PDFs
+            </p>
+            <div className="mt-2 grid grid-cols-2 gap-1.5">
+              {chart.values.map((value, index) => (
+                <div
+                  key={`${chart.labels[index]}-${index}`}
+                  className="rounded-lg border border-emerald-300/20 bg-emerald-300/10 px-2 py-1.5"
+                >
+                  <p className="truncate text-[9px] text-emerald-100/70">
+                    {chart.labels[index]}
+                  </p>
+                  <p className="text-sm font-semibold text-emerald-100">
+                    {value.toLocaleString()}{" "}
+                    <span className="text-[9px] font-normal text-emerald-100/60">
+                      {chart.unit}
+                    </span>
+                  </p>
+                </div>
+              ))}
+            </div>
+            <p className="mt-2 text-[8px] text-sky-100/45">
+              Visual by {visualModel || "AI"} · values overlaid from sources
+            </p>
+          </div>
+        </figcaption>
+      </figure>
+    );
+  }
+
+  if (visualLoading) {
+    return (
+      <figure className="flex min-h-48 flex-col items-center justify-center rounded-xl border border-sky-300/20 bg-gradient-to-br from-sky-300/10 to-emerald-300/5 p-5 text-center">
+        <span className="h-8 w-8 animate-spin rounded-full border-2 border-sky-200/20 border-t-sky-200" />
+        <p className="mt-3 text-xs font-medium text-sky-100">
+          I have the data. Give me a second to finish the visual.
+        </p>
+        <p className="mt-1 text-[9px] text-white/40">
+          The cited PDF values will stay overlaid on the generated image.
+        </p>
+      </figure>
+    );
+  }
+
+  // Keep the deterministic SVG available only when every image provider fails.
+  return <AnswerChartFallback chart={chart} failed={visualFailed} />;
+}
+
+function AnswerChartFallback({
+  chart,
+  large = false,
+  failed = false,
+}: {
+  chart: PaigeChart;
+  large?: boolean;
+  failed?: boolean;
 }) {
   const width = 380;
   const height = large ? 220 : 180;
@@ -1076,33 +1245,15 @@ export function AnswerChart({
 
   return (
     <figure className="relative overflow-hidden rounded-xl border border-white/10 bg-white/[0.04] p-3">
-      {visualUrl && (
-        // Generated imagery is atmosphere only. The SVG and cited PDFs remain
-        // the factual layer so a provider cannot invent labels or numbers.
-        <div
-          role="presentation"
-          className="pointer-events-none absolute inset-0 h-full w-full opacity-[0.16]"
-          style={{
-            backgroundImage: `url("${visualUrl}")`,
-            backgroundPosition: "center",
-            backgroundSize: "cover",
-          }}
-        />
-      )}
       <div className="relative">
         <figcaption className="mb-2">
           <p className="text-xs font-medium text-white/80">{chart.title}</p>
           <p className="text-[10px] text-white/40">
-            {chart.unit} · Exact values from cited PDFs
+            {chart.unit} · Exact fallback from cited PDFs
           </p>
-          {visualLoading && (
-            <p className="mt-1 text-[9px] text-sky-200/70">
-              Generating a shared visual backdrop…
-            </p>
-          )}
-          {visualUrl && (
-            <p className="mt-1 text-[9px] text-sky-200/60">
-              {visualModel || "AI"} backdrop is decorative, not evidence
+          {failed && (
+            <p className="mt-1 text-[9px] text-amber-200/70">
+              AI image unavailable · showing the source-grounded fallback
             </p>
           )}
         </figcaption>

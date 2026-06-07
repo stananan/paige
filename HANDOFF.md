@@ -24,17 +24,21 @@ Full approved design/plan (outside the repo): `~/.gstack/projects/paige/stanleyh
 - `/room` — LiveKit room: prejoin (name) → video grid (`GridLayout`+`ParticipantTile`) +
   `ControlBar`. Token minted by `/api/token` (livekit-server-sdk).
 - **Paige's voice spine (browser approach):**
-  - **Ears (STT):** browser **Web Speech API** (Chrome `webkitSpeechRecognition`) in
-    `src/app/room/PaigeListener.tsx`. Continuous; detects wake word "Paige" (accepts
-    homophones page/pages/padge/paij); extracts the command after the wake word.
+  - **Ears (STT):** **Deepgram Nova-3**. Every browser segments only its local LiveKit
+    microphone track, sends the utterance to authenticated `/api/transcribe`, and receives
+    the speaker name from the verified LiveKit token. Wake matching still accepts
+    page/pages/padge/paij. Filler/casual fragments are ignored and Paige only stops speaking
+    after at least three substantive words.
   - **Voice (TTS):** **MiniMax `speech-2.8-hd`, voice `English_radiant_girl`, speed `1.2`**
     via `/api/tts`. Plays MP3 in-browser. This configuration was live-verified.
   - **Shared session:** one wake word opens a flowing conversation; follow-ups include the
     last six turns, and natural end phrases close it for the whole room.
   - **Chat box** in the same panel (type to Paige) — any participant can ask or end a session.
-  - LiveKit reliable data packets synchronize question/answer/session state. Each browser
-    plays the same MiniMax answer, so every participant hears Paige. Active-speaker events
-    stop playback immediately when a person interrupts.
+  - LiveKit reliable data packets synchronize attributed transcripts plus question,
+    answer, and session state. Each browser plays the same MiniMax answer, so every
+    participant hears Paige.
+  - Conversational/filler speech does not clear the current visual or PDF. The previous
+    grounded presentation remains until a different grounded answer replaces it.
 - **Ingestion pipeline is complete:** `bun run ingest` recursively reads one selected
   `/data/<company>/**/*.pdf` corpus, caches Unsiloed
   parse results by file hash, reconstructs page-specific Markdown, creates bounded Moss
@@ -63,10 +67,10 @@ Full approved design/plan (outside the repo): `~/.gstack/projects/paige/stanleyh
   every cell, so values pulled from tables/headers pass. Same relaxation applied to the
   spoken-answer number check so a table-only value no longer hard-fails the request.
 - **Task #6 — Qwen vs MiniMax image race: COMPLETE WITH A SAFETY BOUNDARY.** Explicit
-  chart/visual prompts race both providers through `src/lib/image-race.ts`. Numbers, periods,
-  text, and chart instructions are stripped from the image prompt; the winner is shared to
-  every participant as a low-opacity decorative backdrop. The deterministic, source-grounded
-  SVG remains the only factual visualization.
+  chart/visual prompts race both providers through `src/lib/image-race.ts`. The winner is
+  returned as binary image data, shared to every participant, blurred to make provider-made
+  text unreadable, and covered with exact source-grounded HTML values. The deterministic SVG
+  is retained only if all image providers fail.
 - **General conversation + resilience: COMPLETE.** Obvious conversation bypasses Moss and
   goes directly to `generateConversationalAnswer`; ambiguous business questions still
   retrieve. Retrieval errors and answer-validation failures use deterministic report/chart
@@ -92,14 +96,16 @@ src/app/room/PaigeListener.tsx  Paige's brain (usePaige hook) + PaigeTile/PaigeD
 src/app/api/token/route.ts  LiveKit JWT minting (server)
 src/app/api/tts/route.ts    MiniMax TTS -> MP3 (server)
 src/app/api/ask/route.ts    Moss retrieval -> TrueFoundry answer + citations/chart
-src/app/api/image/route.ts  Qwen vs MiniMax image race -> winning data URL (server)
+src/app/api/image/route.ts  Qwen vs MiniMax image race -> winning image bytes (server)
+src/app/api/transcribe/route.ts verified LiveKit participant audio -> Deepgram Nova-3
 src/lib/paige-answer.ts     grounded answer + conversational fallback + output validation
 src/lib/paige-room.ts       shared LiveKit event protocol + session transcript parsing
-src/lib/image-race.ts       Qwen/MiniMax race, prompt builder, data-URL packaging
+src/lib/image-race.ts       Qwen/MiniMax race and safe visual prompt builder
+src/lib/deepgram-browser.ts local LiveKit mic utterance segmentation
+src/lib/deepgram.ts         server-only Deepgram request + response validation
 src/lib/minimax-image.ts    MiniMax image-01 client (server-only)
 src/data/fdc.ts             shared FDC dashboard and corpus facts
 src/lib/room.ts             hardcoded room name "paige-room"
-src/lib/speech.ts           Web Speech API types + factory
 src/lib/env.ts              typed env accessors
 scripts/ingest.ts           offline Unsiloed → page chunks → Moss sync + query verification
 scripts/ingest-lib.ts       pure page/chunk/citation transforms
@@ -115,8 +121,8 @@ agent/                      parked Python LiveKit-Agents worker (Deepgram path)
 ## Stack & sponsors
 Next.js 16 / React 19 / Tailwind v4 on Vercel. **LiveKit** (room + transport) · **Moss**
 (semantic retrieval — the foundation) · **Unsiloed** (PDF parsing) · **MiniMax** (TTS) ·
-**Qwen via DashScope** (optional image experiment) · **TrueFoundry** (answer LLM gateway +
-fallback) · browser **Web Speech API** (STT).
+**Qwen via DashScope** (image generation) · **TrueFoundry** (answer LLM gateway +
+fallback) · **Deepgram Nova-3** (STT).
 
 ## Env / keys
 In `.env` (gitignored). `.env.example` documents all. Deployed ones are also on Vercel
@@ -133,7 +139,8 @@ In `.env` (gitignored). `.env.example` documents all. Deployed ones are also on 
   `openai/gpt-5.4-mini`. Live verification succeeded against `/models` and
   `/chat/completions`. Use TrueFoundry for the answer LLM; MiniMax TTS and Qwen image
   generation remain direct provider integrations.
-- `DEEPGRAM_API_KEY` — empty (only if reviving `agent/`).
+- `DEEPGRAM_API_KEY` — set locally and on Vercel. Used server-side by
+  `/api/transcribe`.
 
 ## How to run
 - Dev: `npm run dev` → http://localhost:3000. Open `/room` **in Chrome**, allow mic, say
@@ -150,14 +157,16 @@ In `.env` (gitignored). `.env.example` documents all. Deployed ones are also on 
    `libstdc++` than Vercel provides, so `/api/ask` uses Moss's HTTP query API with a ranked
    `getDocs` fallback. Local ingestion continues to use the Moss SDK.
 2. **MiniMax TTS needs no GroupId** with this key. `POST api.minimax.io/v1/t2a_v2`, Bearer auth.
-3. **Web Speech hears "Paige" as "page"** → wake matching accepts homophones. **Chrome only.**
+3. **Deepgram may hear "Paige" as "page"** → wake matching accepts homophones. Chrome is
+   still the demo target because the mic capture path uses `MediaRecorder`.
 4. **Don't leave test sessions in `/room`** — they appear as ghost participants. Navigate away
    to an http(s) page to disconnect (the browse tool blocks `about:blank`).
 5. **Paige is browser-side** now (not a LiveKit participant). `agent/` is the parked alternative.
-6. React StrictMode (dev) double-mounts; `recognition.start()` is guarded with try/catch.
-7. **Generated images are never factual charts.** Qwen and MiniMax can change or omit
-   labels and values. The room may generate a decorative backdrop with all numbers/text
-   stripped from the prompt, but cited values always render deterministically in React/SVG.
+6. React StrictMode (dev) double-mounts; the Deepgram recorder cleanup must remain
+   idempotent and must never stop the original LiveKit microphone track.
+7. **Generated-image text is never evidence.** Qwen and MiniMax can invent labels. Generated
+   pixels are blurred and exact cited labels/values render in HTML on top. SVG remains a
+   provider-failure fallback.
 8. **Google Drive should be an import source, not the live answer path.** Keep Moss as the
    query-time knowledge base. A future "Connect Drive" flow should use OAuth, let a user
    select a folder, parse supported files, and sync page-cited content into Moss.

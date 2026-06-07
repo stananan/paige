@@ -83,7 +83,7 @@ export default function RoomClient() {
         setConnecting(false);
       }}
     >
-      <PaigeRoom />
+      <PaigeRoom liveKitToken={conn.token} />
       <RoomAudioRenderer />
     </LiveKitRoom>
   );
@@ -91,8 +91,8 @@ export default function RoomClient() {
 
 // Each browser hosts a synchronized Paige client. LiveKit data and byte streams
 // keep the answer, chart, source preview, session, and generated backdrop shared.
-function PaigeRoom() {
-  const paige = usePaige();
+function PaigeRoom({ liveKitToken }: { liveKitToken: string }) {
+  const paige = usePaige(liveKitToken);
   const [dockOpen, setDockOpen] = useState(true);
 
   return (
