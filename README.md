@@ -13,6 +13,7 @@ Built for the **YC Conversational AI Hackathon** (Jun 6–7 2026), Co-Pilot trac
 1. **Push-to-talk** — hold Space while speaking and release to send the complete utterance.
    A short microphone pre-roll keeps Deepgram from clipping the opening words; every
    participant is transcribed separately, and typed spaces never activate recording.
+   Pressing Space while Paige speaks stops her immediately and begins the next utterance.
 2. **Shared grounded response** — every participant sees and hears the same spoken takeaway,
    cited card, generated visual, and PDF page preview inside Paige's equal-sized tile.
 3. **Safe generated visuals** — data visuals require a grounded chart or citations, while
@@ -104,6 +105,7 @@ Smoke-test Qwen image generation (writes to ignored `data/.qwen-test/`):
 - [x] **13–16 Citations + chart polish** — every evidence chip opens the exact public PDF page; charts render and are value-grounded across one or more cited source PDFs
 - [x] **Shared meeting experience** — LiveKit reliable packets synchronize attributed transcripts, answers, PDF previews, and image streams; every browser plays MiniMax TTS
 - [x] **16–19 Image presentation** — MiniMax Image-01 returns a subject-specific native 16:9 image shown to everyone; unsupported data requests do not generate, valid image/draw/chart synonyms share deterministic extraction, and exact values remain source-grounded HTML overlays
+- [x] **Fast Q2 demo visual + recorded teammate** — Q2 2025-vs-Q2 2026 visual prompts use the prepared comparison image instantly; an optimized muted Nico recording fills his participant tile and is clearly labeled recorded
 - [ ] **19–21 Stretch: live upload** — one "upload a doc" → live Unsiloed parse → answerable
 - [ ] **21–23 Rehearse + harden** — run the full demo twice; prep a recorded fallback clip
 - [ ] **23–24 Submit** — lock build, write submission, demo script

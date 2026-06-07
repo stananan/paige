@@ -13,6 +13,9 @@
 # testing
 /coverage
 
+# local source media (optimized deployable copies live in public/demo-assets)
+/assets/
+
 # next.js
 /.next/
 /out/

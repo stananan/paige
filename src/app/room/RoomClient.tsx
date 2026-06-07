@@ -153,12 +153,46 @@ function Conference({ paige }: { paige: PaigeState }) {
       </div>
     );
   });
+  const hasLiveNico = tracks.some(
+    (track) => track.participant.identity.trim().toLowerCase() === "nico",
+  );
+  const showRecordedNico = !hasLiveNico;
+  const tileCount = tracks.length + 1 + Number(showRecordedNico);
+  const centerLastTile = tileCount === 3;
 
   return (
-    <div className={`grid h-full auto-rows-fr gap-2 p-2 ${gridColsClass(tracks.length + 1)}`}>
+    <div className={`grid h-full auto-rows-fr gap-2 p-2 ${gridColsClass(tileCount)}`}>
       {humanTiles}
-      <div className="min-h-0 min-w-0 overflow-hidden rounded-lg">
+      {showRecordedNico && <RecordedNicoTile />}
+      <div
+        className={`min-h-0 min-w-0 overflow-hidden rounded-lg ${
+          centerLastTile
+            ? "col-span-2 w-[calc(50%-0.25rem)] justify-self-center"
+            : ""
+        }`}
+      >
         <PaigeTile paige={paige} />
+      </div>
+    </div>
+  );
+}
+
+function RecordedNicoTile() {
+  return (
+    <div className="relative min-h-0 min-w-0 overflow-hidden rounded-lg bg-black">
+      <video
+        src="/demo-assets/nico-demo-loop.mp4"
+        autoPlay
+        loop
+        muted
+        playsInline
+        preload="auto"
+        disablePictureInPicture
+        aria-label="Recorded video of Nico"
+        className="h-full w-full object-cover"
+      />
+      <div className="absolute bottom-2 left-2 rounded-md bg-black/55 px-2 py-1 text-xs font-medium text-white backdrop-blur">
+        Nico · recorded
       </div>
     </div>
   );
