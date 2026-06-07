@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
+import { inspect } from "node:util";
 
 const require = createRequire(import.meta.url);
 const npm = process.platform === "win32" ? "npm.cmd" : "npm";
@@ -10,11 +11,15 @@ function run(args) {
   if (result.status !== 0) process.exit(result.status ?? 1);
 }
 
-function nativeBindingIsInstalled() {
+function canLoad(packageName, logError = false) {
   try {
-    require.resolve(`${nativePackage}/package.json`);
+    require(packageName);
     return true;
-  } catch {
+  } catch (error) {
+    if (logError) {
+      console.error(`[vercel-install] Failed to load ${packageName}`);
+      console.error(inspect(error, { depth: 10 }));
+    }
     return false;
   }
 }
@@ -22,7 +27,7 @@ function nativeBindingIsInstalled() {
 run(["install", "--package-lock=false", "--include=optional"]);
 
 if (process.platform === "linux" && process.arch === "x64") {
-  if (!nativeBindingIsInstalled()) {
+  if (!canLoad(nativePackage)) {
     run([
       "install",
       "--package-lock=false",
@@ -33,9 +38,8 @@ if (process.platform === "linux" && process.arch === "x64") {
     ]);
   }
 
-  if (!nativeBindingIsInstalled()) {
-    console.error(`[vercel-install] Failed to install ${nativePackage}`);
+  if (!canLoad(nativePackage, true) || !canLoad("@moss-dev/moss-core", true)) {
     process.exit(1);
   }
-  console.log(`[vercel-install] Verified ${nativePackage}`);
+  console.log(`[vercel-install] Loaded ${nativePackage} and @moss-dev/moss-core`);
 }
