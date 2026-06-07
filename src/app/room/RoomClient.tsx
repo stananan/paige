@@ -39,11 +39,15 @@ export default function RoomClient() {
 
   if (!conn) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center px-6">
-        <div className="flex w-full max-w-sm flex-col gap-5">
+      <div className="relative flex flex-1 flex-col items-center justify-center overflow-hidden px-6">
+        <div className="hero-glow pointer-events-none absolute inset-x-0 top-0 h-[60vh]" />
+        <div className="relative z-10 flex w-full max-w-sm flex-col gap-5 rounded-2xl border border-foreground/10 bg-white p-7 shadow-xl shadow-accent/10">
           <div className="text-center">
-            <h1 className="text-2xl font-semibold tracking-tight">Join the meeting</h1>
-            <p className="mt-1 text-sm text-foreground/60">
+            <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-accent text-lg font-bold text-white shadow-lg shadow-accent/25">
+              P
+            </span>
+            <h1 className="mt-4 text-2xl font-semibold tracking-tight">Join the meeting</h1>
+            <p className="mt-1 text-sm text-muted">
               Open this in two tabs to be two people. Paige joins as the third.
             </p>
           </div>
@@ -53,12 +57,12 @@ export default function RoomClient() {
             onKeyDown={(e) => e.key === "Enter" && name.trim() && join()}
             placeholder="Your name"
             autoFocus
-            className="rounded-xl border border-foreground/15 bg-transparent px-4 py-3 text-base outline-none focus:border-foreground/40"
+            className="rounded-xl border border-foreground/15 bg-white px-4 py-3 text-base outline-none focus:border-accent/50"
           />
           <button
             onClick={join}
             disabled={connecting || !name.trim()}
-            className="rounded-xl bg-foreground px-4 py-3 font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-40"
+            className="rounded-xl bg-accent px-4 py-3 font-semibold text-white shadow-lg shadow-accent/25 transition hover:bg-accent-strong disabled:opacity-40"
           >
             {connecting ? "Connecting…" : "Join room →"}
           </button>
@@ -107,7 +111,7 @@ function PaigeRoom({ liveKitToken }: { liveKitToken: string }) {
         <button
           type="button"
           onClick={() => setDockOpen(true)}
-          className="absolute bottom-20 right-4 z-20 rounded-full border border-white/15 bg-black/75 px-3 py-2 text-xs font-medium text-white shadow-xl backdrop-blur hover:bg-black/90"
+          className="absolute bottom-20 right-4 z-20 rounded-full border border-white/20 bg-accent px-3 py-2 text-xs font-medium text-white shadow-xl shadow-accent/25 backdrop-blur transition hover:bg-accent-strong"
           aria-label="Open Paige text window"
         >
           Open Paige chat

@@ -1,40 +1,66 @@
 @import "tailwindcss";
 
 :root {
+  /* Cron's near-black/orange, inverted: white surfaces, deep-navy ink, blue accent */
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #0b1b3a;
+  --accent: #2563eb;
+  --accent-strong: #1d4ed8;
+  --muted: #5b6b86;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-muted: var(--muted);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  /* Tailwind generates the font-display utility from this */
+  --font-display: var(--font-caudex);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
 }
 
 @layer components {
   .dashboard-card {
-    @apply rounded-2xl border border-[#17231d]/10 bg-[#fbfaf7] shadow-[0_1px_0_rgba(23,35,29,0.03)];
+    @apply rounded-2xl border border-foreground/10 bg-white shadow-[0_1px_0_rgba(11,27,58,0.03)];
   }
 
   .section-kicker {
-    @apply font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-[#27705a];
+    @apply font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-accent;
   }
 
   .section-title {
     @apply mt-1 text-2xl font-semibold tracking-[-0.035em] sm:text-3xl;
   }
+}
+
+/* Soft blue glow behind the hero (Cron's orange CTA glow, recolored) */
+.hero-glow {
+  background: radial-gradient(
+    55% 45% at 50% 30%,
+    rgba(37, 99, 235, 0.14),
+    transparent 70%
+  );
+}
+
+@keyframes paige-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.paige-fade-in {
+  animation: paige-fade-in 0.35s ease-out;
 }
