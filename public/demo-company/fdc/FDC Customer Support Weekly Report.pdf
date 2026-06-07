@@ -7,41 +7,54 @@ endobj
 << /Type /Pages /Kids [3 0 R 5 0 R] /Count 2 >>
 endobj
 3 0 obj
-<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 7 0 R >> >> /Contents 4 0 R >>
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 7 0 R /F2 8 0 R /F3 9 0 R >> >> /Contents 4 0 R >>
 endobj
 4 0 obj
-<< /Length 987 >>
+<< /Length 1117 >>
 stream
 BT
-/F1 18 Tf
+/F2 18 Tf
 1 0 0 1 54 738 Tm
 (Q1 and May support performance) Tj
-/F1 8 Tf
+/F2 8 Tf
 1 0 0 1 54 716 Tm
 (FDC CONFIDENTIAL - SYNTHETIC DEMO DATA) Tj
 /F1 10 Tf
+/F1 10 Tf
 1 0 0 1 54 686 Tm
 (Q1 2026 customer satisfaction was 94%.) Tj
+/F1 10 Tf
 1 0 0 1 54 672 Tm
 (Median first response time was 18 minutes for priority tickets.) Tj
+/F1 10 Tf
 1 0 0 1 54 658 Tm
 (SLA attainment was 98.6%.) Tj
+/F1 10 Tf
 1 0 0 1 54 644 Tm
 (Support handled 932 tickets in Q1, up 14% from Q4 2025.) Tj
+/F1 10 Tf
 1 0 0 1 54 630 Tm
 (The week ending May 29 closed 91% of tickets within target.) Tj
+/F1 10 Tf
 1 0 0 1 54 616 Tm
+/F2 10 Tf
 1 0 0 1 54 602 Tm
 (TOP TICKET THEMES) Tj
+/F1 10 Tf
 1 0 0 1 54 588 Tm
 (Inventory connector configuration: 24% of May tickets.) Tj
+/F1 10 Tf
 1 0 0 1 54 574 Tm
 (FieldSync mobile permissions: 18%.) Tj
+/F1 10 Tf
 1 0 0 1 54 560 Tm
 (LedgerLens report exports: 13%.) Tj
+/F1 10 Tf
 1 0 0 1 54 546 Tm
 (User provisioning and SSO: 11%.) Tj
+/F1 10 Tf
 1 0 0 1 54 532 Tm
+/F1 10 Tf
 1 0 0 1 54 518 Tm
 (The documentation deflection rate is 31%, against a 38% Q2 target.) Tj
 /F1 8 Tf
@@ -51,36 +64,46 @@ ET
 endstream
 endobj
 5 0 obj
-<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 7 0 R >> >> /Contents 6 0 R >>
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 7 0 R /F2 8 0 R /F3 9 0 R >> >> /Contents 6 0 R >>
 endobj
 6 0 obj
-<< /Length 971 >>
+<< /Length 1071 >>
 stream
 BT
-/F1 18 Tf
+/F2 18 Tf
 1 0 0 1 54 738 Tm
 (Escalations and support actions) Tj
-/F1 8 Tf
+/F2 8 Tf
 1 0 0 1 54 716 Tm
 (FDC CONFIDENTIAL - SYNTHETIC DEMO DATA) Tj
 /F1 10 Tf
+/F1 10 Tf
 1 0 0 1 54 686 Tm
 (Three enterprise escalations were open on May 29.) Tj
+/F1 10 Tf
 1 0 0 1 54 672 Tm
 (Northstar Logistics: intermittent ERP connector timeouts; engineering fix due June 11.) Tj
+/F1 10 Tf
 1 0 0 1 54 658 Tm
 (Altitude Home Services: mobile permissions rollout; enablement session due June 6.) Tj
+/F1 10 Tf
 1 0 0 1 54 644 Tm
 (Harbor Medical Supply: report export formatting; patch due June 14.) Tj
+/F1 10 Tf
 1 0 0 1 54 630 Tm
+/F2 10 Tf
 1 0 0 1 54 616 Tm
 (ACTIONS) Tj
+/F1 10 Tf
 1 0 0 1 54 602 Tm
 (Publish a connector troubleshooting guide by June 7.) Tj
+/F1 10 Tf
 1 0 0 1 54 588 Tm
 (Add in-product mobile permission checks by June 21.) Tj
+/F1 10 Tf
 1 0 0 1 54 574 Tm
 (Hire four additional technical support engineers by August.) Tj
+/F1 10 Tf
 1 0 0 1 54 560 Tm
 (Create a dedicated enterprise escalation rotation before Q3 renewals.) Tj
 /F1 8 Tf
@@ -92,18 +115,26 @@ endobj
 7 0 obj
 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
 endobj
+8 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
+endobj
+9 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>
+endobj
 xref
-0 8
+0 10
 0000000000 65535 f 
 0000000021 00000 n 
 0000000070 00000 n 
 0000000133 00000 n 
-0000000259 00000 n 
-0000001296 00000 n 
-0000001422 00000 n 
-0000002443 00000 n 
+0000000279 00000 n 
+0000001447 00000 n 
+0000001593 00000 n 
+0000002715 00000 n 
+0000002785 00000 n 
+0000002860 00000 n 
 trailer
-<< /Size 8 /Root 1 0 R >>
+<< /Size 10 /Root 1 0 R >>
 startxref
-2513
+2928
 %%EOF

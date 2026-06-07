@@ -7,51 +7,69 @@ endobj
 << /Type /Pages /Kids [3 0 R 5 0 R] /Count 2 >>
 endobj
 3 0 obj
-<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 7 0 R >> >> /Contents 4 0 R >>
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 7 0 R /F2 8 0 R /F3 9 0 R >> >> /Contents 4 0 R >>
 endobj
 4 0 obj
-<< /Length 1424 >>
+<< /Length 1599 >>
 stream
 BT
-/F1 18 Tf
+/F2 18 Tf
 1 0 0 1 54 738 Tm
 (Four-year financial summary) Tj
-/F1 8 Tf
+/F2 8 Tf
 1 0 0 1 54 716 Tm
 (FDC CONFIDENTIAL - SYNTHETIC DEMO DATA) Tj
 /F1 10 Tf
+/F1 10 Tf
 1 0 0 1 54 686 Tm
 (All currency values are in USD millions unless otherwise stated.) Tj
+/F1 10 Tf
 1 0 0 1 54 672 Tm
+/F3 8 Tf
 1 0 0 1 54 658 Tm
 (YEAR | REVENUE | EXIT ARR | GROSS MARGIN | OPERATING INCOME | NRR) Tj
+/F3 8 Tf
 1 0 0 1 54 644 Tm
 (FY2022 | 18.4 | 20.1 | 61% | -8.1 | 108%) Tj
+/F3 8 Tf
 1 0 0 1 54 630 Tm
 (FY2023 | 31.7 | 34.6 | 66% | -5.4 | 113%) Tj
+/F3 8 Tf
 1 0 0 1 54 616 Tm
 (FY2024 | 48.9 | 52.8 | 71% | -1.8 | 118%) Tj
+/F3 8 Tf
 1 0 0 1 54 602 Tm
 (FY2025 | 68.4 | 76.2 | 74% | 4.6 | 121%) Tj
+/F1 10 Tf
 1 0 0 1 54 588 Tm
+/F1 10 Tf
 1 0 0 1 54 574 Tm
 (FY2025 revenue grew 39.9% from FY2024.) Tj
+/F1 10 Tf
 1 0 0 1 54 560 Tm
 (FY2024 revenue was $48.9 million.) Tj
+/F1 10 Tf
 1 0 0 1 54 546 Tm
 (FY2025 revenue was $68.4 million.) Tj
+/F1 10 Tf
 1 0 0 1 54 532 Tm
 (Revenue increased by $19.5 million.) Tj
+/F1 10 Tf
 1 0 0 1 54 518 Tm
 (FY2024 operating income was a loss of $1.8 million.) Tj
+/F1 10 Tf
 1 0 0 1 54 504 Tm
 (FY2025 operating income was a profit of $4.6 million.) Tj
+/F1 10 Tf
 1 0 0 1 54 490 Tm
 (Operating income improved by $6.4 million.) Tj
+/F1 10 Tf
 1 0 0 1 54 476 Tm
 (FDC reached positive annual operating income for the first time in FY2025.) Tj
+/F1 10 Tf
 1 0 0 1 54 462 Tm
 (Gross margin improved three percentage points due to hosting optimization and pricing.) Tj
+/F1 10 Tf
 1 0 0 1 54 448 Tm
 (Year-end cash and short-term investments were $41.8 million.) Tj
 /F1 8 Tf
@@ -61,46 +79,62 @@ ET
 endstream
 endobj
 5 0 obj
-<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 7 0 R >> >> /Contents 6 0 R >>
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 7 0 R /F2 8 0 R /F3 9 0 R >> >> /Contents 6 0 R >>
 endobj
 6 0 obj
-<< /Length 1126 >>
+<< /Length 1286 >>
 stream
 BT
-/F1 18 Tf
+/F2 18 Tf
 1 0 0 1 54 738 Tm
 (FY2025 revenue composition) Tj
-/F1 8 Tf
+/F2 8 Tf
 1 0 0 1 54 716 Tm
 (FDC CONFIDENTIAL - SYNTHETIC DEMO DATA) Tj
 /F1 10 Tf
+/F1 10 Tf
 1 0 0 1 54 686 Tm
 (Subscription revenue was $61.7 million, or 90.2% of total revenue.) Tj
+/F1 10 Tf
 1 0 0 1 54 672 Tm
 (Professional services revenue was $6.7 million, or 9.8% of total revenue.) Tj
+/F1 10 Tf
 1 0 0 1 54 658 Tm
+/F2 10 Tf
 1 0 0 1 54 644 Tm
 (PRODUCT ARR MIX) Tj
+/F1 10 Tf
 1 0 0 1 54 630 Tm
 (RelayOS: $41.1 million, 54% of exit ARR.) Tj
+/F1 10 Tf
 1 0 0 1 54 616 Tm
 (LedgerLens: $20.6 million, 27% of exit ARR.) Tj
+/F1 10 Tf
 1 0 0 1 54 602 Tm
 (FieldSync: $14.5 million, 19% of exit ARR.) Tj
+/F1 10 Tf
 1 0 0 1 54 588 Tm
+/F2 10 Tf
 1 0 0 1 54 574 Tm
 (REGIONAL REVENUE MIX) Tj
+/F1 10 Tf
 1 0 0 1 54 560 Tm
 (North America: 75%. EMEA: 18%. APAC: 7%.) Tj
+/F1 10 Tf
 1 0 0 1 54 546 Tm
+/F2 10 Tf
 1 0 0 1 54 532 Tm
 (OPERATING EXPENSE) Tj
+/F1 10 Tf
 1 0 0 1 54 518 Tm
 (Research and development: $20.8 million.) Tj
+/F1 10 Tf
 1 0 0 1 54 504 Tm
 (Sales and marketing: $24.1 million.) Tj
+/F1 10 Tf
 1 0 0 1 54 490 Tm
 (General and administrative: $12.6 million.) Tj
+/F1 10 Tf
 1 0 0 1 54 476 Tm
 (Cloud infrastructure and AI inference were the largest cost-of-revenue items.) Tj
 /F1 8 Tf
@@ -112,18 +146,26 @@ endobj
 7 0 obj
 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
 endobj
+8 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
+endobj
+9 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>
+endobj
 xref
-0 8
+0 10
 0000000000 65535 f 
 0000000021 00000 n 
 0000000070 00000 n 
 0000000133 00000 n 
-0000000259 00000 n 
-0000001734 00000 n 
-0000001860 00000 n 
-0000003037 00000 n 
+0000000279 00000 n 
+0000001929 00000 n 
+0000002075 00000 n 
+0000003412 00000 n 
+0000003482 00000 n 
+0000003557 00000 n 
 trailer
-<< /Size 8 /Root 1 0 R >>
+<< /Size 10 /Root 1 0 R >>
 startxref
-3107
+3625
 %%EOF

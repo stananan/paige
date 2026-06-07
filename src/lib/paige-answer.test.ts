@@ -5,7 +5,9 @@ import {
   generateAnswerFromDocuments,
   generateConversationalAnswer,
   parseModelAnswer,
+  retrievalQueryForQuestion,
   retrieveMossDocuments,
+  shouldRetrieveCompanyDocuments,
   type RetrievedDocument,
 } from "./paige-answer";
 
@@ -41,6 +43,36 @@ const q3History: RetrievedDocument = {
   ].join("\n"),
 };
 
+const q2Documents: RetrievedDocument[] = [
+  {
+    sourceFile: "fdc/FDC Q2 2025 Quarterly Report.pdf",
+    sourceUrl: "/demo-company/fdc/FDC%20Q2%202025%20Quarterly%20Report.pdf#page=1",
+    page: "1",
+    text: [
+      "REPORT STATUS: Actual.",
+      "All currency values are in USD millions unless otherwise stated.",
+      "PERIOD | REVENUE | EXIT ARR | GROSS MARGIN | OPERATING INCOME",
+      "Q2 2025 actual | 16.8 | 69.1 | 74% | 1.1",
+      "PERIOD | OPERATING CASH FLOW | NRR | CUSTOMERS | EMPLOYEES",
+      "Q2 2025 actual | 1.5 | 120% | 401 | 262",
+    ].join("\n"),
+  },
+  {
+    sourceFile: "fdc/FDC Q2 2026 Preliminary Quarterly Report.pdf",
+    sourceUrl:
+      "/demo-company/fdc/FDC%20Q2%202026%20Preliminary%20Quarterly%20Report.pdf#page=1",
+    page: "1",
+    text: [
+      "REPORT STATUS: Preliminary forecast.",
+      "All currency values are in USD millions unless otherwise stated.",
+      "PERIOD | REVENUE | EXIT ARR | GROSS MARGIN | OPERATING INCOME",
+      "Q2 2026 forecast | 21.6 | 89.2 | 77% | 2.7",
+      "PERIOD | OPERATING CASH FLOW | NRR | CUSTOMERS | EMPLOYEES",
+      "Q2 2026 forecast | 3.1 | 124% | 447 | 298",
+    ].join("\n"),
+  },
+];
+
 function asMossDocument(document: RetrievedDocument) {
   return {
     id: `${document.sourceFile}-${document.page}`,
@@ -48,6 +80,7 @@ function asMossDocument(document: RetrievedDocument) {
     metadata: {
       sourceFile: document.sourceFile,
       page: document.page,
+      ...(document.sourceUrl ? { sourceUrl: document.sourceUrl } : {}),
     },
   };
 }
@@ -170,6 +203,30 @@ describe("retrieveMossDocuments", () => {
     expect(requests).toHaveLength(3);
     expect(results[0]).toEqual(documents[1]);
   });
+
+  test("keeps evidence from both requested years for a comparison", async () => {
+    const results = await retrieveMossDocuments(
+      "Q2 revenue comparison\nRetrieval periods: Q2 2026 and Q2 2025.",
+      {
+        environment: mossEnvironment,
+        fetchImpl: async (input) => {
+          const url = String(input);
+          if (url.endsWith("/identity/auth/token")) {
+            return Response.json({ token: "moss-token" }, { status: 201 });
+          }
+          if (url.endsWith("/query")) {
+            return Response.json({ docs: [asMossDocument(q2Documents[1])] });
+          }
+          return Response.json(q2Documents.map(asMossDocument));
+        },
+      },
+    );
+
+    expect(results.map((document) => document.sourceFile)).toEqual([
+      q2Documents[1].sourceFile,
+      q2Documents[0].sourceFile,
+    ]);
+  });
 });
 
 describe("parseModelAnswer", () => {
@@ -203,6 +260,32 @@ describe("parseModelAnswer", () => {
       },
       model: "test-model",
     });
+  });
+
+  test("preserves a safe public PDF link on a citation", () => {
+    const linkedDocuments: RetrievedDocument[] = [
+      {
+        ...documents[1],
+        sourceUrl: "/demo-company/fdc/annual-report.pdf#page=8",
+      },
+    ];
+    const answer = parseModelAnswer(
+      {
+        answer: "Revenue reached $210 million in 2025.",
+        citations: [1],
+        chart: null,
+      },
+      linkedDocuments,
+      "test-model",
+    );
+
+    expect(answer.citations).toEqual([
+      {
+        sourceFile: "annual-report.pdf",
+        page: "8",
+        url: "/demo-company/fdc/annual-report.pdf#page=8",
+      },
+    ]);
   });
 
   test("drops charts containing values absent from cited source text", () => {
@@ -352,7 +435,24 @@ describe("extractGroundedTableChart", () => {
         values: [4.6, 7.9, 12.4, 17.2],
         unit: "USD millions",
       },
-      source: q3History,
+      sources: [q3History],
+    });
+  });
+
+  test("builds a Q2 comparison chart from two separately cited reports", () => {
+    expect(
+      extractGroundedTableChart(
+        "Create a graph comparing Q2 revenue this year and last year",
+        q2Documents,
+      ),
+    ).toEqual({
+      chart: {
+        title: "REVENUE — Q2 comparison",
+        labels: ["Q2 2025 actual", "Q2 2026 forecast"],
+        values: [16.8, 21.6],
+        unit: "USD millions",
+      },
+      sources: q2Documents,
     });
   });
 
@@ -486,6 +586,43 @@ describe("generateAnswerFromDocuments", () => {
     expect(answer.citations).toEqual([{ sourceFile: "quarterly-history.pdf", page: "1" }]);
   });
 
+  test("returns a deterministic cited Q2 summary when the model omits citations", async () => {
+    const answer = await generateAnswerFromDocuments(
+      "What are the key statistics in our latest Q2 report?",
+      [q2Documents[1]],
+      {
+        fetchImpl: async () =>
+          Response.json({
+            choices: [
+              {
+                message: {
+                  content: JSON.stringify({
+                    answer: "I could not find it.",
+                    citations: [],
+                    chart: null,
+                  }),
+                },
+              },
+            ],
+          }),
+        environment: {
+          TRUEFOUNDRY_BASE_URL: "https://gateway.truefoundry.ai",
+          TRUEFOUNDRY_API_KEY: "test-key",
+        },
+      },
+    );
+
+    expect(answer.answer).toContain("revenue $21.6 million");
+    expect(answer.answer).toContain("preliminary forecast");
+    expect(answer.citations).toEqual([
+      {
+        sourceFile: q2Documents[1].sourceFile,
+        page: "1",
+        url: q2Documents[1].sourceUrl,
+      },
+    ]);
+  });
+
   test("forwards caller cancellation to the TrueFoundry request", async () => {
     const controller = new AbortController();
     let requestSignal: AbortSignal | null | undefined;
@@ -562,14 +699,35 @@ describe("generateConversationalAnswer", () => {
   });
 });
 
+describe("retrieval intent", () => {
+  test("bypasses Moss for obvious conversation and keeps company questions grounded", () => {
+    expect(shouldRetrieveCompanyDocuments("Hi Paige, can you introduce yourself?")).toBe(false);
+    expect(shouldRetrieveCompanyDocuments("What's the weather like today?")).toBe(false);
+    expect(shouldRetrieveCompanyDocuments("What are the key statistics in our Q2 report?")).toBe(
+      true,
+    );
+  });
+
+  test("expands relative demo periods without changing explicit years", () => {
+    expect(
+      retrievalQueryForQuestion("Create a graph comparing Q2 revenue this year and last year"),
+    ).toContain("Q2 2026 and Q2 2025");
+    expect(retrievalQueryForQuestion("What was Q2 2025 revenue?")).toBe(
+      "What was Q2 2025 revenue?",
+    );
+  });
+});
+
 describe("askPaige conversational fallback", () => {
-  test("answers conversationally when the index is unreachable", async () => {
+  test("answers obvious conversation without calling Moss", async () => {
+    let mossCalled = false;
     const answer = await askPaige("Hi Paige, can you introduce yourself?", {
       environment: conversationEnvironment,
       fetchImpl: async (input) => {
         const url = String(input);
         if (url.includes("service.usemoss.dev")) {
-          return new Response("Unavailable", { status: 503 });
+          mossCalled = true;
+          throw new Error("Moss should not be called");
         }
         if (url.endsWith("/chat/completions")) {
           return Response.json({
@@ -589,36 +747,25 @@ describe("askPaige conversational fallback", () => {
     expect(answer.answer).toContain("Paige");
     expect(answer.citations).toEqual([]);
     expect(answer.chart).toBeNull();
+    expect(mossCalled).toBe(false);
   });
 
-  test("answers conversationally when retrieved documents don't support the question", async () => {
+  test("answers general questions without searching company documents", async () => {
+    let mossCalled = false;
     const answer = await askPaige("What's the weather like today?", {
       environment: conversationEnvironment,
-      fetchImpl: async (input, init) => {
+      fetchImpl: async (input) => {
         const url = String(input);
-        if (url.endsWith("/identity/auth/token")) {
-          return Response.json({ token: "moss-token" }, { status: 201 });
-        }
-        if (url.endsWith("/query")) {
-          return Response.json({ docs: [asMossDocument(documents[0])] });
-        }
-        if (url.endsWith("/manage")) {
-          return Response.json([]);
+        if (url.includes("service.usemoss.dev")) {
+          mossCalled = true;
+          throw new Error("Moss should not be called");
         }
         if (url.endsWith("/chat/completions")) {
-          const request = JSON.parse(String(init?.body));
-          if (String(request.messages[0].content).includes("Return JSON only")) {
-            return Response.json({
-              choices: [
-                { message: { content: JSON.stringify({ answer: "n/a", citations: [], chart: null }) } },
-              ],
-            });
-          }
           return Response.json({
             choices: [
               {
                 message: {
-                  content: "I don't see that in the indexed documents, but I can help another way.",
+                  content: "I don't have live weather data, but I can still help with the meeting.",
                 },
               },
             ],
@@ -628,9 +775,10 @@ describe("askPaige conversational fallback", () => {
       },
     });
 
-    expect(answer.answer).toContain("indexed documents");
+    expect(answer.answer).toContain("weather");
     expect(answer.citations).toEqual([]);
     expect(answer.chart).toBeNull();
+    expect(mossCalled).toBe(false);
   });
 
   test("still returns grounded answers when the documents support the question", async () => {

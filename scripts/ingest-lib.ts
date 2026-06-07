@@ -200,6 +200,15 @@ function stableDocumentId(
   return `${sourceFile.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase()}-${digest}`;
 }
 
+export function publicSourceUrl(sourceFile: string, page?: number): string | undefined {
+  if (!sourceFile.startsWith("fdc/") || sourceFile.includes("..")) return undefined;
+  const encodedPath = sourceFile
+    .split("/")
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+  return `/demo-company/${encodedPath}${page ? `#page=${page}` : ""}`;
+}
+
 export function toMossDocuments(
   result: UnsiloedParseResult,
   sourceFile: string,
@@ -248,6 +257,7 @@ export function toMossDocuments(
 
   for (const [page, pageSegments] of byPage) {
     const parts = splitText(pageSegments.join("\n\n"), options);
+    const sourceUrl = publicSourceUrl(sourceFile, page);
     parts.forEach((text, partIndex) => {
       documents.push({
         id: stableDocumentId(sourceFile, page, partIndex, text),
@@ -255,6 +265,7 @@ export function toMossDocuments(
         metadata: {
           sourceFile,
           page: String(page),
+          ...(sourceUrl ? { sourceUrl } : {}),
           pages: String(page),
           chunkPart: `${partIndex + 1}/${parts.length}`,
           documentType: "pdf",

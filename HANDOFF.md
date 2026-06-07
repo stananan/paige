@@ -33,12 +33,13 @@ Full approved design/plan (outside the repo): `~/.gstack/projects/paige/stanleyh
 - **Ingestion pipeline is complete:** `bun run ingest` recursively reads one selected
   `/data/<company>/**/*.pdf` corpus, caches Unsiloed
   parse results by file hash, reconstructs page-specific Markdown, creates bounded Moss
-  documents carrying `{sourceFile, page}`, synchronizes the `paige-docs` index, then loads
+  documents carrying `{sourceFile, page, sourceUrl}`, synchronizes the `paige-docs` index, then loads
   it and verifies a real query returns citation metadata.
-- **FDC demo corpus is complete:** `bun run demo:seed` generates ten two-page PDFs from
-  `src/data/fdc.ts`, copies them to the public demo library, parses them through Unsiloed,
-  and indexes 20 page-cited Moss documents. The prepared prompts include a four-year Q3
-  comparison with a grounded chart.
+- **FDC demo corpus is complete:** `bun run demo:seed` generates 14 PDFs from
+  `src/data/fdc.ts`, including separate Q1-Q4 2025 reports plus Q1 and preliminary Q2 2026
+  reports. It copies them to the public demo library, parses every page through Unsiloed,
+  and indexes 40 page-cited Moss documents. The primary demo prompts summarize the latest
+  Q2 report and compare Q2 2026 with Q2 2025 using a grounded two-source chart.
 - **`agent/`** — a Python **LiveKit-Agents** worker (the original "Paige as a real participant"
   design: Deepgram STT + MiniMax TTS). **PARKED.** We switched to browser STT because Deepgram
   signup was blocked. It's import-verified (livekit-agents 1.5.17) but never run live (needs
@@ -59,14 +60,15 @@ Full approved design/plan (outside the repo): `~/.gstack/projects/paige/stanleyh
   runs both providers through `src/lib/image-race.ts`, but the room no longer calls it for
   company-data questions. Image models changed labels and values, so only deterministic,
   source-grounded SVG charts appear in the live answer path.
-- **General conversation + resilience: COMPLETE.** `askPaige` no longer dead-ends on
-  off-corpus questions or a flaky index — it falls back to a spoken conversational answer
-  (`generateConversationalAnswer`). Retrieval errors and answer-validation throws degrade to
-  conversation instead of a 502.
+- **General conversation + resilience: COMPLETE.** Obvious conversation bypasses Moss and
+  goes directly to `generateConversationalAnswer`; ambiguous business questions still
+  retrieve. Retrieval errors and answer-validation failures use deterministic report/chart
+  extraction when possible, then degrade to conversation instead of a 502.
 - **Paige presence: COMPLETE.** Paige stays the same size as every webcam tile. Cited
   answers and charts render inside her tile; the text dock can be closed and reopened.
 - **Demo company PDF library: COMPLETE.** `/demo-company` lists the actual generated PDFs
   (`DriveExplorer`); each opens in the browser and is labeled Unsiloed-parsed/Moss-indexed.
+  Citations inside Paige's participant tile open the exact PDF page in a new tab.
 - Remaining: live upload (#7), two real Chrome mic + two-person LiveKit rehearsals (#8),
   final demo script + fallback recording + submission (#9). See `README.md`.
 
@@ -162,7 +164,8 @@ In `.env` (gitignored). `.env.example` documents all. Deployed ones are also on 
    parked in `agent/`.
 
 ## Demo target
-Two people in `/room` on webcams. Open `/demo-company` for the prepared FDC prompts, then
-someone says "Paige, compare FDC's Q3 revenue from 2022 through 2025."
-Paige speaks a one-line answer and renders a four-bar chart with the exact PDF values and a
-file/page citation. The loop runs twice without reset.
+Two people in `/room` on webcams. Open `/demo-company` for the prepared FDC prompts, then:
+1. "Paige, what are the key statistics in our latest Q2 report?"
+2. "Paige, create a graph comparing Q2 revenue this year and last year."
+Paige cites the Q2 2026 preliminary report for the summary, then renders a two-bar chart
+using Q2 2026 and Q2 2025 with clickable links to both exact PDF pages.

@@ -23,13 +23,15 @@ For the built-in synthetic FDC demo company:
 
 That command regenerates `data/fdc/*.pdf`, copies the same demo-safe PDFs to
 `public/demo-company/fdc/`, parses the corpus with Unsiloed, and synchronizes
-the page-cited chunks to Moss.
+the page-cited chunks to Moss. The bundled corpus currently contains 14 PDFs and
+40 indexed pages, including separate quarterly reports for Q1-Q4 2025 and Q1-Q2
+2026. The Q2 2026 report is explicitly preliminary because the quarter is open.
 
 ## What to put here
 
-- **For building/testing:** synthetic quarterly reports + financial spreadsheets
-  (the set your friend generates — varied currencies, fiscal years, and layouts, so
-  the parse + retrieval is stress-tested across formats).
+- **For building/testing:** synthetic quarterly reports and operating documents with
+  explicit text tables, period labels, and source-page metadata so retrieval and chart
+  grounding can be tested deterministically.
 - **For the stage demo:** a real public company's last ~10 years of annual reports /
   10-Ks. Real numbers impress judges. Avoid scanned-image-only PDFs — Unsiloed needs
   text/tables it can actually parse.

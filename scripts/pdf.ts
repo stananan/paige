@@ -41,6 +41,10 @@ function wrapLine(input: string): string[] {
   return lines;
 }
 
+function isSectionHeading(line: string): boolean {
+  return /^[A-Z0-9][A-Z0-9 &/:-]+$/.test(line) && line.length <= 64 && !line.includes("|");
+}
+
 function pageStream(page: PdfPage, pageNumber: number, pageCount: number): string {
   const bodyLines = page.lines.flatMap(wrapLine);
   if (bodyLines.length > MAX_BODY_LINES) {
@@ -51,10 +55,10 @@ function pageStream(page: PdfPage, pageNumber: number, pageCount: number): strin
 
   const commands = [
     "BT",
-    "/F1 18 Tf",
+    "/F2 18 Tf",
     `1 0 0 1 ${MARGIN_X} 738 Tm`,
     `(${escapePdfString(page.title)}) Tj`,
-    "/F1 8 Tf",
+    "/F2 8 Tf",
     `1 0 0 1 ${MARGIN_X} 716 Tm`,
     "(FDC CONFIDENTIAL - SYNTHETIC DEMO DATA) Tj",
     "/F1 10 Tf",
@@ -62,6 +66,9 @@ function pageStream(page: PdfPage, pageNumber: number, pageCount: number): strin
 
   let y = 686;
   for (const line of bodyLines) {
+    if (line.includes("|")) commands.push("/F3 8 Tf");
+    else if (isSectionHeading(line)) commands.push("/F2 10 Tf");
+    else commands.push("/F1 10 Tf");
     commands.push(`1 0 0 1 ${MARGIN_X} ${y} Tm`);
     if (line) commands.push(`(${escapePdfString(line)}) Tj`);
     y -= 14;
@@ -79,8 +86,10 @@ function pageStream(page: PdfPage, pageNumber: number, pageCount: number): strin
 export function createTextPdf(pages: PdfPage[]): Buffer {
   if (pages.length === 0) throw new Error("A PDF must contain at least one page");
 
-  const fontId = 3 + pages.length * 2;
-  const objects: string[] = Array.from({ length: fontId + 1 }, () => "");
+  const regularFontId = 3 + pages.length * 2;
+  const boldFontId = regularFontId + 1;
+  const monoFontId = regularFontId + 2;
+  const objects: string[] = Array.from({ length: monoFontId + 1 }, () => "");
   const pageIds = pages.map((_, index) => 3 + index * 2);
 
   objects[1] = "<< /Type /Catalog /Pages 2 0 R >>";
@@ -92,12 +101,14 @@ export function createTextPdf(pages: PdfPage[]): Buffer {
     const stream = pageStream(page, index + 1, pages.length);
     objects[pageId] =
       `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE_WIDTH} ${PAGE_HEIGHT}] ` +
-      `/Resources << /Font << /F1 ${fontId} 0 R >> >> /Contents ${contentId} 0 R >>`;
+      `/Resources << /Font << /F1 ${regularFontId} 0 R /F2 ${boldFontId} 0 R /F3 ${monoFontId} 0 R >> >> /Contents ${contentId} 0 R >>`;
     objects[contentId] =
       `<< /Length ${Buffer.byteLength(stream, "latin1")} >>\nstream\n${stream}endstream`;
   });
 
-  objects[fontId] = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>";
+  objects[regularFontId] = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>";
+  objects[boldFontId] = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>";
+  objects[monoFontId] = "<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>";
 
   let output = "%PDF-1.4\n% PAIGE FDC\n";
   const offsets: number[] = Array.from({ length: objects.length }, () => 0);
@@ -118,4 +129,3 @@ export function createTextPdf(pages: PdfPage[]): Buffer {
 
   return Buffer.from(output, "latin1");
 }
-

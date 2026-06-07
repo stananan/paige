@@ -5,6 +5,7 @@ import { join } from "node:path";
 import {
   findPdfFiles,
   parseUnsiloedResult,
+  publicSourceUrl,
   sameDocument,
   selectCorpusPdfs,
   splitText,
@@ -111,6 +112,16 @@ describe("toMossDocuments", () => {
     );
     expect(documents[0].text).toContain("2024 revenue");
     expect(documents[1].text).toContain("2025 revenue");
+  });
+
+  test("adds public page links for the bundled FDC corpus only", () => {
+    const documents = toMossDocuments(result, "fdc/FDC Q2 2026 Report.pdf");
+
+    expect(documents[0].metadata?.sourceUrl).toBe(
+      "/demo-company/fdc/FDC%20Q2%202026%20Report.pdf#page=1",
+    );
+    expect(publicSourceUrl("acme/private.pdf", 1)).toBeUndefined();
+    expect(publicSourceUrl("fdc/../private.pdf", 1)).toBeUndefined();
   });
 
   test("produces stable ids and a usable verification query", () => {

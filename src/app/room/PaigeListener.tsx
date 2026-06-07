@@ -257,6 +257,10 @@ function statusColor(paige: PaigeState): string {
   return "bg-white/30";
 }
 
+function sourceLabel(sourceFile: string): string {
+  return sourceFile.split("/").at(-1) ?? sourceFile;
+}
+
 // Paige stays the same size as every webcam tile. Grounded answers render inside
 // her tile, so presenting data never takes over the room or enlarges her window.
 export function PaigeTile({ paige, compact = false }: { paige: PaigeState; compact?: boolean }) {
@@ -287,14 +291,27 @@ export function PaigeTile({ paige, compact = false }: { paige: PaigeState; compa
           {paige.reply.chart && <AnswerChart chart={paige.reply.chart} />}
           {paige.reply.citations.length > 0 && (
             <div className="flex flex-wrap gap-1">
-              {paige.reply.citations.map((citation) => (
-                <span
-                  key={`${citation.sourceFile}-${citation.page}`}
-                  className="rounded border border-white/10 bg-white/5 px-1.5 py-1 text-[9px] text-white/60"
-                >
-                  {citation.sourceFile} · p.{citation.page}
-                </span>
-              ))}
+              {paige.reply.citations.map((citation) =>
+                citation.url ? (
+                  <a
+                    key={`${citation.sourceFile}-${citation.page}`}
+                    href={citation.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded border border-emerald-300/20 bg-emerald-300/10 px-1.5 py-1 text-[9px] text-emerald-100 hover:bg-emerald-300/20"
+                    title={citation.sourceFile}
+                  >
+                    {sourceLabel(citation.sourceFile)} · p.{citation.page} · Open PDF ↗
+                  </a>
+                ) : (
+                  <span
+                    key={`${citation.sourceFile}-${citation.page}`}
+                    className="rounded border border-white/10 bg-white/5 px-1.5 py-1 text-[9px] text-white/60"
+                  >
+                    {sourceLabel(citation.sourceFile)} · p.{citation.page}
+                  </span>
+                ),
+              )}
             </div>
           )}
         </div>
@@ -421,7 +438,9 @@ export function AnswerChart({ chart, large = false }: { chart: PaigeChart; large
     <figure className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
       <figcaption className="mb-2">
         <p className="text-xs font-medium text-white/80">{chart.title}</p>
-        <p className="text-[10px] text-white/40">{chart.unit}</p>
+        <p className="text-[10px] text-white/40">
+          {chart.unit} · Generated from cited PDF data
+        </p>
       </figcaption>
       <svg
         viewBox={`0 0 ${width} ${height}`}

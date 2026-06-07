@@ -14,8 +14,8 @@ Built for the **YC Conversational AI Hackathon** (Jun 6–7 2026), Co-Pilot trac
    Paige's equal-sized participant tile.
 3. **No generated-data images** — Qwen/MiniMax image experiments remain available at
    `/api/image`, but factual answers never display them because image models distort labels and values.
-4. **Citations on every answer** — source file + page, from Moss metadata. Chart labels and
-   values are copied from retrieved PDF tables and validated before rendering.
+4. **Citations on every answer** — clickable source PDF + page, from Moss metadata. Chart
+   labels and values are copied from retrieved PDF tables and validated before rendering.
 
 ## Stack
 
@@ -50,9 +50,9 @@ Smoke-test Qwen image generation (writes to ignored `data/.qwen-test/`):
 - [x] **3–6 Paige's voice spine** — ✅ Browser Web Speech API STT (wake "Paige") in `/room` + MiniMax TTS (`/api/tts`). Needs a real-Chrome mic test. (LiveKit-Agents path parked in `agent/`, needs Deepgram.)
 - [x] **6–9 Ingest pipeline** — `bun run ingest`: /data → Unsiloed parse with cached results → page-preserving chunks → synchronized Moss index + live citation query verification
 - [x] **9–13 Fast beat (hero)** — wake cmd → Moss retrieve → GPT-5.4 Mini (TrueFoundry) → spoken answer + cited card + deterministic chart; production verified
-- [x] **Demo workspace + corpus** — `/demo-company` lists ten downloadable FDC PDFs, each labeled as Unsiloed-parsed and Moss-indexed; the corpus contains 20 page-cited documents and seven prepared prompts
-- [x] **Paige presence + general chat** — Paige remains the same size as every webcam tile and renders cited answers/charts inside her tile. The text dock can be closed and reopened. Off-corpus questions get a conversational answer instead of a dead end.
-- [x] **13–16 Citations + chart polish** — source file + page on every card; charts render and are value-grounded against the cited sources (unit declared once is OK)
+- [x] **Demo workspace + corpus** — `/demo-company` lists 14 downloadable FDC PDFs, including Q1-Q4 2025 plus Q1 and preliminary Q2 2026; the live Moss index contains 40 page-cited documents and eight prepared prompts
+- [x] **Paige presence + general chat** — Paige remains the same size as every webcam tile and renders cited answers/charts inside her tile. The text dock can be closed and reopened. Obvious conversational prompts bypass Moss; ambiguous business prompts still retrieve.
+- [x] **13–16 Citations + chart polish** — every evidence chip opens the exact public PDF page; charts render and are value-grounded across one or more cited source PDFs
 - [x] **16–19 Image safety correction** — Qwen vs MiniMax race remains implemented at `/api/image`, but generated images are disabled in factual answers; deterministic cited charts are the only data visualization
 - [ ] **19–21 Stretch: live upload** — one "upload a doc" → live Unsiloed parse → answerable
 - [ ] **21–23 Rehearse + harden** — run the full demo twice; prep a recorded fallback clip

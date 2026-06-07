@@ -7,48 +7,65 @@ endobj
 << /Type /Pages /Kids [3 0 R 5 0 R] /Count 2 >>
 endobj
 3 0 obj
-<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 7 0 R >> >> /Contents 4 0 R >>
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 7 0 R /F2 8 0 R /F3 9 0 R >> >> /Contents 4 0 R >>
 endobj
 4 0 obj
-<< /Length 1220 >>
+<< /Length 1390 >>
 stream
 BT
-/F1 18 Tf
+/F2 18 Tf
 1 0 0 1 54 738 Tm
 (2026 product roadmap) Tj
-/F1 8 Tf
+/F2 8 Tf
 1 0 0 1 54 716 Tm
 (FDC CONFIDENTIAL - SYNTHETIC DEMO DATA) Tj
 /F1 10 Tf
+/F1 10 Tf
 1 0 0 1 54 686 Tm
 (Q2 2026 commitments:) Tj
+/F1 10 Tf
 1 0 0 1 54 672 Tm
 (RelayOS route optimization general availability on June 24.) Tj
+/F1 10 Tf
 1 0 0 1 54 658 Tm
 (LedgerLens anomaly explanations beta on June 17.) Tj
+/F1 10 Tf
 1 0 0 1 54 644 Tm
 (Implementation template library with ten industry playbooks on June 28.) Tj
+/F1 10 Tf
 1 0 0 1 54 630 Tm
+/F1 10 Tf
 1 0 0 1 54 616 Tm
 (Q3 2026 commitments:) Tj
+/F1 10 Tf
 1 0 0 1 54 602 Tm
 (FieldSync offline mobile mode in August.) Tj
+/F1 10 Tf
 1 0 0 1 54 588 Tm
 (EU data residency in September.) Tj
+/F1 10 Tf
 1 0 0 1 54 574 Tm
 (Customer-configurable approval policies in September.) Tj
+/F1 10 Tf
 1 0 0 1 54 560 Tm
+/F1 10 Tf
 1 0 0 1 54 546 Tm
 (Q4 2026 commitments:) Tj
+/F1 10 Tf
 1 0 0 1 54 532 Tm
 (Supplier follow-up agent in October.) Tj
+/F1 10 Tf
 1 0 0 1 54 518 Tm
 (Cross-product command center in November.) Tj
+/F1 10 Tf
 1 0 0 1 54 504 Tm
 (Predictive staffing recommendations in December.) Tj
+/F1 10 Tf
 1 0 0 1 54 490 Tm
+/F1 10 Tf
 1 0 0 1 54 476 Tm
 (The second half of 2026 includes all Q3 and Q4 commitments listed above.) Tj
+/F1 10 Tf
 1 0 0 1 54 462 Tm
 (The company will not launch autonomous purchasing approval in 2026.) Tj
 /F1 8 Tf
@@ -58,43 +75,57 @@ ET
 endstream
 endobj
 5 0 obj
-<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 7 0 R >> >> /Contents 6 0 R >>
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 7 0 R /F2 8 0 R /F3 9 0 R >> >> /Contents 6 0 R >>
 endobj
 6 0 obj
-<< /Length 1168 >>
+<< /Length 1308 >>
 stream
 BT
-/F1 18 Tf
+/F2 18 Tf
 1 0 0 1 54 738 Tm
 (Engineering capacity and risk) Tj
-/F1 8 Tf
+/F2 8 Tf
 1 0 0 1 54 716 Tm
 (FDC CONFIDENTIAL - SYNTHETIC DEMO DATA) Tj
 /F1 10 Tf
+/F1 10 Tf
 1 0 0 1 54 686 Tm
 (Engineering has 92 employees across product engineering, infrastructure, data, and) Tj
+/F1 10 Tf
 1 0 0 1 54 672 Tm
 (security.) Tj
+/F1 10 Tf
 1 0 0 1 54 658 Tm
 (Planned 2026 engineering hires: 14, including five platform and four mobile roles.) Tj
+/F1 10 Tf
 1 0 0 1 54 644 Tm
 (Current roadmap confidence is 82%.) Tj
+/F1 10 Tf
 1 0 0 1 54 630 Tm
+/F2 10 Tf
 1 0 0 1 54 616 Tm
 (TOP DELIVERY RISKS) Tj
+/F1 10 Tf
 1 0 0 1 54 602 Tm
 (EU data residency depends on completing tenant migration tooling by July 31.) Tj
+/F1 10 Tf
 1 0 0 1 54 588 Tm
 (Offline mobile mode has unresolved conflict-handling edge cases.) Tj
+/F1 10 Tf
 1 0 0 1 54 574 Tm
 (Inference spend is 11% above plan due to LedgerLens explanation usage.) Tj
+/F1 10 Tf
 1 0 0 1 54 560 Tm
+/F2 10 Tf
 1 0 0 1 54 546 Tm
 (RELIABILITY TARGETS) Tj
+/F1 10 Tf
 1 0 0 1 54 532 Tm
 (99.95% monthly availability for RelayOS and LedgerLens.) Tj
+/F1 10 Tf
 1 0 0 1 54 518 Tm
 (Fewer than one preventable SEV-2 incident per quarter.) Tj
+/F1 10 Tf
 1 0 0 1 54 504 Tm
 (Reduce p95 inventory sync delay from 4.8 seconds to below 3 seconds.) Tj
 /F1 8 Tf
@@ -106,18 +137,26 @@ endobj
 7 0 obj
 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
 endobj
+8 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
+endobj
+9 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>
+endobj
 xref
-0 8
+0 10
 0000000000 65535 f 
 0000000021 00000 n 
 0000000070 00000 n 
 0000000133 00000 n 
-0000000259 00000 n 
-0000001530 00000 n 
-0000001656 00000 n 
-0000002875 00000 n 
+0000000279 00000 n 
+0000001720 00000 n 
+0000001866 00000 n 
+0000003225 00000 n 
+0000003295 00000 n 
+0000003370 00000 n 
 trailer
-<< /Size 8 /Root 1 0 R >>
+<< /Size 10 /Root 1 0 R >>
 startxref
-2945
+3438
 %%EOF

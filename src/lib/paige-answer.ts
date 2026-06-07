@@ -17,7 +17,7 @@ const CONVERSATION_SYSTEM_PROMPT = [
   "You are Paige, a warm, sharp live meeting copilot sitting in on a meeting.",
   "Reply directly to the speaker in one to three short, natural sentences meant to be read aloud.",
   "You can chat, brainstorm, summarize discussion, and help facilitate the meeting.",
-  "You can search the company's indexed documents, but this message did not match any of them.",
+  "Company documents are searched separately when a question asks for company facts; this request is conversational.",
   "If it asks for specific company data, say you don't see it in the indexed documents and invite a rephrase; never invent company figures.",
   "Do not use markdown, bullet points, headings, or emoji.",
 ].join(" ");
@@ -29,6 +29,7 @@ const CONVERSATION_FALLBACK =
 export interface PaigeCitation {
   sourceFile: string;
   page: string;
+  url?: string;
 }
 
 export interface PaigeChart {
@@ -49,6 +50,7 @@ export interface RetrievedDocument {
   text: string;
   sourceFile: string;
   page: string;
+  sourceUrl?: string;
 }
 
 type Environment = Record<string, string | undefined>;
@@ -121,6 +123,7 @@ function toRetrievedDocument(value: unknown): RetrievedDocument | null {
   }
   const sourceFile = value.metadata.sourceFile;
   const page = value.metadata.page;
+  const sourceUrl = value.metadata.sourceUrl;
   if (
     typeof sourceFile !== "string" ||
     typeof page !== "string" ||
@@ -134,6 +137,9 @@ function toRetrievedDocument(value: unknown): RetrievedDocument | null {
     text: value.text.trim(),
     sourceFile: sourceFile.trim(),
     page: page.trim(),
+    ...(typeof sourceUrl === "string" && sourceUrl.startsWith("/demo-company/fdc/")
+      ? { sourceUrl: sourceUrl.trim() }
+      : {}),
   };
 }
 
@@ -184,6 +190,38 @@ function searchTerms(question: string): string[] {
   ];
 }
 
+export function shouldRetrieveCompanyDocuments(question: string): boolean {
+  const normalized = question.trim();
+  if (!normalized) return false;
+
+  const companyEvidenceCue =
+    /\b(?:fdc|company|our|q[1-4]|fy20\d{2}|20\d{2}|report|pdf|document|source|citation|evidence|data|statistic|metric|revenue|arr|margin|income|cash flow|customer|renewal|pipeline|incident|security|compliance|headcount|employee|forecast|budget|sales|support|roadmap|booking|churn|retention|nrr|graph|chart|compare)\b/i;
+  if (companyEvidenceCue.test(normalized)) return true;
+
+  const conversationalCue =
+    /^(?:hi|hello|hey|thanks|thank you|good morning|good afternoon|good evening)\b|\b(?:who are you|introduce yourself|how are you|what can you do|tell me a joke|weather|brainstorm|help me draft|write a|meeting agenda|standup format)\b/i;
+  if (conversationalCue.test(normalized)) return false;
+
+  // Ambiguous meeting questions still retrieve. Missing a company fact is more
+  // harmful than one extra lookup, while obvious small talk stays fast.
+  return true;
+}
+
+export function retrievalQueryForQuestion(question: string): string {
+  const quarter = question.match(/\bQ[1-4]\b/i)?.[0].toUpperCase();
+  const hasExplicitYear = /\b20\d{2}\b/.test(question);
+  if (!quarter || hasExplicitYear) return question;
+
+  const comparesPriorYear =
+    /\b(?:this|current)\s+year\b[\s\S]*\b(?:last|prior|previous)\s+year\b|\b(?:last|prior|previous)\s+year\b[\s\S]*\b(?:this|current)\s+year\b/i.test(
+      question,
+    );
+  const periods = comparesPriorYear
+    ? `${quarter} 2026 and ${quarter} 2025`
+    : `${quarter} 2026`;
+  return `${question}\nRetrieval periods: ${periods}.`;
+}
+
 function documentTermScore(terms: string[], document: RetrievedDocument): number {
   const haystack = `${document.sourceFile}\n${document.text}`.toLowerCase();
   return terms.reduce(
@@ -196,6 +234,7 @@ function rankDocuments(
   question: string,
   documents: RetrievedDocument[],
   positiveOnly = false,
+  limit = 5,
 ): RetrievedDocument[] {
   const terms = searchTerms(question);
 
@@ -205,7 +244,7 @@ function rankDocuments(
     })
     .filter(({ score }) => !positiveOnly || score > 0)
     .sort((left, right) => right.score - left.score || left.index - right.index)
-    .slice(0, 5)
+    .slice(0, limit)
     .map(({ document }) => document);
 }
 
@@ -230,6 +269,40 @@ function uniqueDocuments(documents: RetrievedDocument[]): RetrievedDocument[] {
       ]),
     ).values(),
   ];
+}
+
+function prioritizeRequestedPeriods(
+  question: string,
+  documents: RetrievedDocument[],
+): RetrievedDocument[] {
+  const years = [...requestedYearLabels(question)];
+  const quarter = question.match(/\bQ[1-4]\b/i)?.[0].toUpperCase();
+  if (years.length === 0 || !quarter) return documents;
+  const metricAliases = requestedMetric(question) ?? [];
+
+  const preferred = years
+    .map((year) => {
+      const period = `${quarter} ${year}`.toLowerCase();
+      return documents
+        .filter((document) => {
+          const haystack = `${document.sourceFile}\n${document.text}`.toLowerCase();
+          return haystack.includes(period);
+        })
+        .map((document) => {
+          const source = document.sourceFile.toLowerCase();
+          const text = document.text.toLowerCase();
+          const score =
+            (source.includes(period) ? 20 : 0) +
+            (text.includes(period) ? 8 : 0) +
+            (/\|\s*period\s*\|/i.test(document.text) ? 8 : 0) +
+            (metricAliases.some((alias) => text.includes(alias)) ? 4 : 0) +
+            (document.page === "1" ? 2 : 0);
+          return { document, score };
+        })
+        .sort((left, right) => right.score - left.score)[0]?.document;
+    })
+    .filter((document): document is RetrievedDocument => Boolean(document));
+  return uniqueDocuments([...preferred, ...documents]);
 }
 
 async function queryMossCloud(
@@ -310,6 +383,10 @@ export async function retrieveMossDocuments(
 ): Promise<RetrievedDocument[]> {
   const environment = dependencies.environment ?? process.env;
   const fetchImpl = dependencies.fetchImpl ?? fetch;
+  const requestedYears = requestedYearLabels(question);
+  const hasTargetedPeriod =
+    requestedYears.size > 0 && /\bQ[1-4]\b/i.test(question);
+  const resultLimit = requestedYears.size >= 2 ? 8 : 5;
 
   let semanticDocuments: RetrievedDocument[] = [];
   let semanticError: unknown;
@@ -329,15 +406,17 @@ export async function retrieveMossDocuments(
     question,
     semanticDocuments,
     true,
+    resultLimit,
   );
   if (
+    !hasTargetedPeriod &&
     semanticDocuments.length > 0 &&
     hasStrongLexicalMatch(question, semanticDocuments)
   ) {
     return uniqueDocuments([
       ...rankedSemanticDocuments,
       ...semanticDocuments,
-    ]).slice(0, 5);
+    ]).slice(0, resultLimit);
   }
 
   let lexicalDocuments: RetrievedDocument[] = [];
@@ -347,6 +426,7 @@ export async function retrieveMossDocuments(
       question,
       await getAllMossDocuments(environment, fetchImpl, dependencies.signal),
       true,
+      hasTargetedPeriod ? 50 : resultLimit,
     );
   } catch (error) {
     if (dependencies.signal?.aborted) throw error;
@@ -359,11 +439,15 @@ export async function retrieveMossDocuments(
     return [];
   }
 
-  return uniqueDocuments([
-    ...lexicalDocuments.slice(0, 2),
-    ...semanticDocuments,
-    ...lexicalDocuments.slice(2),
-  ]).slice(0, 5);
+  const lexicalLeadCount = requestedYears.size >= 2 ? 4 : 2;
+  return prioritizeRequestedPeriods(
+    question,
+    uniqueDocuments([
+      ...lexicalDocuments.slice(0, lexicalLeadCount),
+      ...semanticDocuments,
+      ...lexicalDocuments.slice(lexicalLeadCount),
+    ]),
+  ).slice(0, resultLimit);
 }
 
 function buildPrompt(question: string, documents: RetrievedDocument[]): string {
@@ -381,8 +465,12 @@ function buildPrompt(question: string, documents: RetrievedDocument[]): string {
 
   return [
     "Answer the meeting question using only the retrieved company-document sources below.",
-    "Return one concise spoken answer, ideally under 35 words.",
+    /\b(?:key statistics|key stats|report data|summari[sz]e|summary)\b/i.test(question)
+      ? "For a report summary, give four to six key statistics in one concise spoken answer under 70 words."
+      : "Return one concise spoken answer, ideally under 35 words.",
     "Citations must be an array of the source numbers that directly support the answer.",
+    "When a quarter is requested without a year, use the most recent matching report and state whether it is actual, preliminary, or forecast.",
+    "For a comparison, cite every source period used.",
     "If the sources do not answer the question, say so and return no citations or chart.",
     "Every number in the spoken answer must appear exactly in a cited source.",
     "Do not calculate, round, convert, or infer any number, percentage, or numeric change.",
@@ -405,7 +493,7 @@ function questionRequestsChart(question: string): boolean {
 
 interface ExtractedTableChart {
   chart: PaigeChart;
-  source: RetrievedDocument;
+  sources: RetrievedDocument[];
 }
 
 function tableCells(line: string): string[] {
@@ -487,6 +575,13 @@ export function extractGroundedTableChart(
     question.toUpperCase().match(/\bQ[1-4]\b/g) ?? [],
   );
   const requestedYears = requestedYearLabels(question);
+  const crossDocumentRows: Array<{
+    label: string;
+    value: number;
+    rawValue: string;
+    metric: string;
+    source: RetrievedDocument;
+  }> = [];
 
   for (const document of documents) {
     const lines = document.text.split(/\r?\n/);
@@ -509,6 +604,7 @@ export function extractGroundedTableChart(
       for (let rowIndex = index + 1; rowIndex < lines.length; rowIndex++) {
         if (!lines[rowIndex].includes("|")) break;
         const cells = tableCells(lines[rowIndex]);
+        if (cells[0]?.toUpperCase() === "PERIOD") break;
         if (cells.length !== headers.length) continue;
         const label = cells[0];
         const normalizedLabel = label.toUpperCase();
@@ -544,12 +640,78 @@ export function extractGroundedTableChart(
           values,
           unit: chartUnit(metric, rawValues, document),
         },
-        source: document,
+        sources: [document],
       };
     }
   }
 
-  return null;
+  for (const document of documents) {
+    const lines = document.text.split(/\r?\n/);
+    for (let index = 0; index < lines.length; index++) {
+      if (!lines[index].includes("|")) continue;
+      const headers = tableCells(lines[index]);
+      const metricIndex = headers.findIndex((header, headerIndex) => {
+        if (headerIndex === 0) return false;
+        const normalized = header.toLowerCase();
+        return metricAliases.some((alias) => normalized.includes(alias));
+      });
+      if (metricIndex === -1) continue;
+
+      for (let rowIndex = index + 1; rowIndex < lines.length; rowIndex++) {
+        if (!lines[rowIndex].includes("|")) break;
+        const cells = tableCells(lines[rowIndex]);
+        if (cells[0]?.toUpperCase() === "PERIOD") break;
+        if (cells.length !== headers.length) continue;
+        const label = cells[0];
+        const normalizedLabel = label.toUpperCase();
+        if (
+          requestedQuarters.size > 0 &&
+          ![...requestedQuarters].some((quarter) => normalizedLabel.includes(quarter))
+        ) {
+          continue;
+        }
+        if (
+          requestedYears.size > 0 &&
+          ![...requestedYears].some((year) => normalizedLabel.includes(year))
+        ) {
+          continue;
+        }
+        const value = parseTableValue(cells[metricIndex]);
+        if (value === null) continue;
+        crossDocumentRows.push({
+          label,
+          value,
+          rawValue: cells[metricIndex],
+          metric: headers[metricIndex],
+          source: document,
+        });
+      }
+    }
+  }
+
+  const uniqueRows = [
+    ...new Map(
+      crossDocumentRows.map((row) => [`${row.label}\0${row.value}`, row]),
+    ).values(),
+  ].sort((left, right) => left.label.localeCompare(right.label));
+  if (uniqueRows.length < 2) return null;
+
+  const metric = uniqueRows[0].metric;
+  const quarterSuffix =
+    requestedQuarters.size === 1 ? ` — ${[...requestedQuarters][0]} comparison` : "";
+  return {
+    chart: {
+      title: `${metric}${quarterSuffix}`,
+      labels: uniqueRows.map((row) => row.label),
+      values: uniqueRows.map((row) => row.value),
+      unit: chartUnit(
+        metric,
+        uniqueRows.map((row) => row.rawValue),
+        uniqueRows[0].source,
+      ),
+    },
+    sources: uniqueDocuments(uniqueRows.map((row) => row.source)),
+  };
 }
 
 function parseChart(value: unknown): PaigeChart | null {
@@ -577,6 +739,118 @@ function parseChart(value: unknown): PaigeChart | null {
     values,
     unit: unit.trim().slice(0, 40),
   };
+}
+
+function citationFor(document: RetrievedDocument): PaigeCitation {
+  return {
+    sourceFile: document.sourceFile,
+    page: document.page,
+    ...(document.sourceUrl ? { url: document.sourceUrl } : {}),
+  };
+}
+
+function formatChartValue(value: number, unit: string): string {
+  if (/usd millions?/i.test(unit)) return `$${value.toLocaleString()} million`;
+  if (unit === "%") return `${value.toLocaleString()}%`;
+  return `${value.toLocaleString()} ${unit}`.trim();
+}
+
+function deterministicChartAnswer(
+  question: string,
+  documents: RetrievedDocument[],
+  model: string,
+): PaigeAnswer | null {
+  const extracted = extractGroundedTableChart(question, documents);
+  if (!extracted) return null;
+
+  const { chart, sources } = extracted;
+  const metric = chart.title.split("—")[0].trim().toLowerCase();
+  const comparisons = chart.labels.map(
+    (label, index) => `${label} ${metric} ${formatChartValue(chart.values[index], chart.unit)}`,
+  );
+  return {
+    answer:
+      comparisons.length === 2
+        ? `${comparisons[0]}, compared with ${comparisons[1]}.`
+        : comparisons.join("; ") + ".",
+    citations: sources.map(citationFor),
+    chart,
+    model,
+  };
+}
+
+function deterministicQuarterSummary(
+  question: string,
+  documents: RetrievedDocument[],
+  model: string,
+): PaigeAnswer | null {
+  if (!/\b(?:key statistics|key stats|report data|quarter(?:ly)? report|q[1-4] data)\b/i.test(question)) {
+    return null;
+  }
+  const requestedQuarter = question.match(/\bQ[1-4]\b/i)?.[0].toUpperCase();
+  if (!requestedQuarter) return null;
+
+  const candidates = documents
+    .map((document) => {
+      const values = new Map<string, string>();
+      let label = "";
+      const lines = document.text.split(/\r?\n/);
+      for (let index = 0; index < lines.length; index++) {
+        const headers = tableCells(lines[index]);
+        if (!lines[index].includes("|") || headers[0]?.toUpperCase() !== "PERIOD") continue;
+        for (let rowIndex = index + 1; rowIndex < lines.length; rowIndex++) {
+          if (!lines[rowIndex].includes("|")) break;
+          const cells = tableCells(lines[rowIndex]);
+          if (cells[0]?.toUpperCase() === "PERIOD") break;
+          if (
+            cells.length !== headers.length ||
+            !cells[0].toUpperCase().includes(requestedQuarter)
+          ) {
+            continue;
+          }
+          label = cells[0];
+          headers.forEach((header, headerIndex) => {
+            if (headerIndex > 0) values.set(header.toUpperCase(), cells[headerIndex]);
+          });
+        }
+      }
+      const year = Number(label.match(/\b20\d{2}\b/)?.[0] ?? 0);
+      return { document, label, values, year };
+    })
+    .filter(({ label, values }) => label && values.has("REVENUE"))
+    .sort((left, right) => right.year - left.year);
+
+  const latest = candidates[0];
+  if (!latest) return null;
+  const revenue = latest.values.get("REVENUE");
+  const arr = latest.values.get("EXIT ARR");
+  const margin = latest.values.get("GROSS MARGIN");
+  const income = latest.values.get("OPERATING INCOME");
+  if (!revenue || !arr || !margin || !income) return null;
+
+  const status = /preliminary/i.test(latest.document.text)
+    ? "preliminary forecast"
+    : latest.label.toLowerCase().includes("forecast")
+      ? "forecast"
+      : "actual";
+  return {
+    answer: `${latest.label} is a ${status}: revenue $${revenue} million, exit ARR $${arr} million, gross margin ${margin}, and operating income $${income} million.`,
+    citations: [citationFor(latest.document)],
+    chart: null,
+    model,
+  };
+}
+
+function deterministicEvidenceAnswer(
+  question: string,
+  documents: RetrievedDocument[],
+  model: string,
+): PaigeAnswer | null {
+  if (questionRequestsChart(question)) {
+    const chartAnswer = deterministicChartAnswer(question, documents, model);
+    if (chartAnswer) return chartAnswer;
+  }
+  return deterministicQuarterSummary(question, documents, model);
 }
 
 function extractQualifiers(prefix: string, suffix: string): Set<string> {
@@ -755,9 +1029,13 @@ export function parseModelAnswer(
 
   const citations = [
     ...new Map(
-      citedDocuments.map(({ sourceFile, page }) => [
+      citedDocuments.map(({ sourceFile, page, sourceUrl }) => [
         `${sourceFile}\0${page}`,
-        { sourceFile, page },
+        {
+          sourceFile,
+          page,
+          ...(sourceUrl ? { url: sourceUrl } : {}),
+        },
       ]),
     ).values(),
   ];
@@ -870,21 +1148,27 @@ export async function generateAnswerFromDocuments(
     throw new Error("TrueFoundry returned malformed answer JSON");
   }
   const answer = parseModelAnswer(parsed, documents, model);
+  if (answer.citations.length === 0) {
+    return deterministicEvidenceAnswer(question, documents, model) ?? answer;
+  }
   if (!answer.chart && answer.citations.length > 0 && questionRequestsChart(question)) {
     const extracted = extractGroundedTableChart(question, documents);
     if (extracted) {
       answer.chart = extracted.chart;
-      if (
-        !answer.citations.some(
-          (citation) =>
-            citation.sourceFile === extracted.source.sourceFile &&
-            citation.page === extracted.source.page,
-        )
-      ) {
-        answer.citations.push({
-          sourceFile: extracted.source.sourceFile,
-          page: extracted.source.page,
-        });
+      for (const source of extracted.sources) {
+        if (
+          !answer.citations.some(
+            (citation) =>
+              citation.sourceFile === source.sourceFile &&
+              citation.page === source.page,
+          )
+        ) {
+          answer.citations.push({
+            sourceFile: source.sourceFile,
+            page: source.page,
+            ...(source.sourceUrl ? { url: source.sourceUrl } : {}),
+          });
+        }
       }
     }
   }
@@ -964,10 +1248,15 @@ export async function askPaige(
   question: string,
   dependencies: AnswerDependencies = {},
 ): Promise<PaigeAnswer> {
+  if (!shouldRetrieveCompanyDocuments(question)) {
+    return generateConversationalAnswer(question, dependencies);
+  }
+
+  const retrievalQuestion = retrievalQueryForQuestion(question);
   let documents: RetrievedDocument[] = [];
   try {
     documents = await withTimeout(
-      retrieveMossDocuments(question, dependencies),
+      retrieveMossDocuments(retrievalQuestion, dependencies),
       RETRIEVAL_TIMEOUT_MS,
       "Moss retrieval timed out",
       dependencies.signal,
@@ -991,6 +1280,10 @@ export async function askPaige(
     // didn't carry a number it mentioned). Don't hard-fail the whole request —
     // Paige still answers conversationally.
     if (dependencies.signal?.aborted) throw error;
+    const model =
+      (dependencies.environment ?? process.env).TRUEFOUNDRY_MODEL?.trim() || DEFAULT_MODEL;
+    const deterministic = deterministicEvidenceAnswer(question, documents, model);
+    if (deterministic) return deterministic;
     return generateConversationalAnswer(question, dependencies);
   }
   // The model found the documents but none actually supported an answer; rather
