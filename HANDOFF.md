@@ -101,9 +101,9 @@ In `.env` (gitignored). `.env.example` documents all. Deployed ones are also on 
 
 ## Gotchas / decisions (will save you time)
 1. **Vercel + Moss native binding:** `.vercelignore` must exclude the npm-11 lockfile because
-   Vercel currently rejects it with `npm error Invalid Version`. Keep
-   `@moss-dev/moss-core-linux-x64-gnu` as an explicit optional dependency so the fresh Linux
-   install still includes Moss's N-API binary.
+   Vercel currently rejects it with `npm error Invalid Version`. Keep the explicit Linux
+   optional dependency and `scripts/vercel-install.mjs`; the custom `vercel.json` install step
+   verifies Moss's N-API binary before the build.
 2. **MiniMax TTS needs no GroupId** with this key. `POST api.minimax.io/v1/t2a_v2`, Bearer auth.
 3. **Web Speech hears "Paige" as "page"** → wake matching accepts homophones. **Chrome only.**
 4. **Don't leave test sessions in `/room`** — they appear as ghost participants. Navigate away
