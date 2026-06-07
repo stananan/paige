@@ -1,4 +1,8 @@
 import type { PaigeAnswer, PaigeConversationTurn } from "./paige-answer";
+import {
+  visualRequestForAnswer,
+  type VisualRequestKind,
+} from "./visual-intent";
 
 export const PAIGE_DATA_TOPIC = "paige.room.v1";
 export const PAIGE_IMAGE_TOPIC = "paige.image.v1";
@@ -238,13 +242,12 @@ export function isSubstantiveTranscript(
 
 export function shouldGenerateVisual(
   question: string,
-  answer: Pick<PaigeAnswer, "chart">,
+  answer: Pick<PaigeAnswer, "answer" | "citations" | "chart">,
 ): boolean {
-  if (answer.chart) return true;
-  return /\b(?:visual|visuali[sz](?:e|ation)?|chart|graph|plot|diagram|graphic|illustration|image|picture|draw|sketch|render|generate)\b/i.test(
-    question,
-  );
+  return visualRequestForAnswer(question, answer) !== null;
 }
+
+export { visualRequestForAnswer, type VisualRequestKind };
 
 export function appendConversationTurn(
   history: PaigeConversationTurn[],

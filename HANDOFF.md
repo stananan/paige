@@ -72,7 +72,11 @@ Full approved design/plan (outside the repo): `~/.gstack/projects/paige/stanleyh
   no-label constraint while Qwen fabricated chart labels and values. MiniMax returns a native
   16:9 binary image shared to every participant, blurred to make provider-made text
   unreadable, and covered with exact source-grounded HTML values. There is no SVG image
-  fallback; one transient MiniMax failure is retried.
+  fallback; one transient MiniMax failure is retried. `src/lib/visual-intent.ts` separates
+  grounded data visuals from creative scenes: missing-data answers never call MiniMax,
+  image/draw synonyms use the same deterministic source extraction as graph/chart requests,
+  and creative scenes bypass Moss. Prompts include the actual subject plus the chart's
+  source-grounded direction instead of requesting a generic abstract background.
 - **General conversation + resilience: COMPLETE.** Obvious conversation bypasses Moss and
   goes directly to `generateConversationalAnswer`; ambiguous business questions still
   retrieve. Retrieval errors and answer-validation failures use deterministic report/chart
@@ -102,6 +106,7 @@ src/app/api/image/route.ts  MiniMax Image-01 -> 16:9 presentation image bytes (s
 src/app/api/transcribe/route.ts verified LiveKit participant audio -> Deepgram Nova-3
 src/lib/paige-answer.ts     grounded answer + conversational fallback + output validation
 src/lib/paige-room.ts       shared LiveKit event protocol + interruption/visual helpers
+src/lib/visual-intent.ts    data-vs-creative visual classification and generation gate
 src/lib/presentation-image.ts MiniMax-only safe visual prompt + transient retry
 src/lib/deepgram-browser.ts local LiveKit mic utterance segmentation
 src/lib/deepgram.ts         server-only Deepgram request + response validation
@@ -168,7 +173,9 @@ In `.env` (gitignored). `.env.example` documents all. Deployed ones are also on 
    idempotent and must never stop the original LiveKit microphone track.
 7. **Generated-image text is never evidence.** Image models can invent labels. MiniMax
    pixels are blurred and exact cited labels/values render in HTML on top. If MiniMax fails
-   after one retry, Paige keeps the cited answer and shows no SVG image substitute.
+   after one retry, Paige keeps the cited answer and shows no SVG image substitute. A data
+   visual also requires a grounded chart or citations; an unavailable-data answer must not
+   generate decorative pixels.
 8. **Google Drive should be an import source, not the live answer path.** Keep Moss as the
    query-time knowledge base. A future "Connect Drive" flow should use OAuth, let a user
    select a folder, parse supported files, and sync page-cited content into Moss.

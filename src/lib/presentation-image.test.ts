@@ -11,26 +11,49 @@ const minimaxSuccess = {
 };
 
 describe("buildPresentationImagePrompt", () => {
-  test("creates a horizontal label-free prompt", () => {
-    const prompt = buildPresentationImagePrompt("FDC revenue growth");
-    expect(prompt).toContain("horizontal 16:9");
-    expect(prompt).toContain("FDC revenue growth");
-    expect(prompt).toContain("Do not include text");
-  });
-
-  test("removes source values from generated pixels", () => {
-    const prompt = buildPresentationImagePrompt(
-      "Compare Q2 2025 revenue of $16.8 million with Q2 2026 at $21.6 million",
-      {
+  test("creates a subject-specific horizontal data prompt", () => {
+    const prompt = buildPresentationImagePrompt({
+      topic: "FDC revenue growth",
+      answer: "Revenue increased from $16.8 million to $21.6 million.",
+      kind: "data",
+      chart: {
         title: "Revenue",
         labels: ["Q2 2025", "Q2 2026"],
         values: [16.8, 21.6],
       },
-    );
+    });
+    expect(prompt).toContain("horizontal 16:9");
+    expect(prompt).toContain("Revenue");
+    expect(prompt).toContain("upward progression");
+    expect(prompt).toContain("business growth");
+    expect(prompt).toContain("Do not include text");
+  });
+
+  test("removes source values from generated pixels", () => {
+    const prompt = buildPresentationImagePrompt({
+      topic: "Compare Q2 2025 revenue of $16.8 million with Q2 2026 at $21.6 million",
+      answer: "Revenue increased from $16.8 million to $21.6 million.",
+      kind: "data",
+      chart: {
+        title: "Revenue",
+        labels: ["Q2 2025", "Q2 2026"],
+        values: [16.8, 21.6],
+      },
+    });
     expect(prompt).not.toContain("Q2");
     expect(prompt).not.toContain("2025");
     expect(prompt).not.toContain("16.8");
-    expect(prompt).toContain("do not draw a literal chart");
+    expect(prompt).toContain("verified source labels and exact values");
+  });
+
+  test("keeps a creative request literal instead of replacing it with abstraction", () => {
+    const prompt = buildPresentationImagePrompt({
+      topic: "Draw a futuristic retail operations command center",
+      kind: "creative",
+    });
+    expect(prompt).toContain("futuristic retail operations command center");
+    expect(prompt).toContain("Follow the requested scene literally");
+    expect(prompt).toContain("Do not replace the subject with generic abstract waves");
   });
 });
 

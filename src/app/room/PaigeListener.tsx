@@ -36,6 +36,8 @@ import {
   PAIGE_IMAGE_TOPIC,
   sharedImageFileName,
   shouldGenerateVisual,
+  visualRequestForAnswer,
+  type VisualRequestKind,
   type PaigeRoomEvent,
 } from "@/lib/paige-room";
 
@@ -366,12 +368,18 @@ export function usePaige(liveKitToken: string): PaigeState {
       interactionId: string,
       question: string,
       answer: PaigeAnswer,
+      kind: VisualRequestKind,
     ) => {
       try {
         const response = await fetch("/api/image", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ topic: question, chart: answer.chart }),
+          body: JSON.stringify({
+            topic: question,
+            answer: answer.answer,
+            kind,
+            chart: answer.chart,
+          }),
         });
         if (!response.ok) {
           const body = (await response.json().catch(() => ({}))) as {
@@ -464,8 +472,9 @@ export function usePaige(liveKitToken: string): PaigeState {
         };
         applyAnswer(interactionId, q, speaker, body, answerEvent.at);
         void publishEvent(answerEvent);
-        if (shouldGenerateVisual(q, body)) {
-          void generateSharedVisual(interactionId, q, body);
+        const visualRequest = visualRequestForAnswer(q, body);
+        if (visualRequest) {
+          void generateSharedVisual(interactionId, q, body, visualRequest.kind);
         }
       } catch (reason) {
         if (controller.signal.aborted) return;
@@ -1248,7 +1257,7 @@ export function AnswerVisual({
       <figure className="flex min-h-48 flex-col items-center justify-center rounded-xl border border-sky-300/20 bg-gradient-to-br from-sky-300/10 to-emerald-300/5 p-5 text-center">
         <span className="h-8 w-8 animate-spin rounded-full border-2 border-sky-200/20 border-t-sky-200" />
         <p className="mt-3 text-xs font-medium text-sky-100">
-          I have the data. Give me a second to finish the visual.
+          Give me a moment to create that visual.
         </p>
         <p className="mt-1 text-[9px] text-white/40">
           {chart

@@ -3,6 +3,7 @@ import {
   buildPresentationImagePrompt,
   generatePresentationImage,
 } from "@/lib/presentation-image";
+import type { VisualRequestKind } from "@/lib/visual-intent";
 
 // Paige's "slow beat": a generated illustration that arrives after the spoken,
 // cited answer. MiniMax creates the backdrop while exact values remain in HTML.
@@ -45,13 +46,28 @@ export async function POST(request: NextRequest) {
   }
 
   let topic: string;
+  let answer: string;
+  let kind: VisualRequestKind;
   let chart: ReturnType<typeof parsedChart>;
   try {
-    const body = (await request.json()) as { topic?: unknown; chart?: unknown };
+    const body = (await request.json()) as {
+      topic?: unknown;
+      answer?: unknown;
+      kind?: unknown;
+      chart?: unknown;
+    };
     topic = typeof body.topic === "string" ? body.topic.trim() : "";
+    answer = typeof body.answer === "string" ? body.answer.trim().slice(0, 600) : "";
+    if (body.kind !== "data" && body.kind !== "creative") {
+      return NextResponse.json({ error: "Invalid visual kind" }, { status: 400 });
+    }
+    kind = body.kind;
     chart = parsedChart(body.chart);
   } catch {
-    return NextResponse.json({ error: "Body must be JSON: { topic }" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Body must be JSON: { topic, answer, kind, chart? }" },
+      { status: 400 },
+    );
   }
 
   if (!topic) {
@@ -63,7 +79,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const image = await generatePresentationImage(
-      buildPresentationImagePrompt(topic, chart),
+      buildPresentationImagePrompt({ topic, answer, kind, chart }),
       { signal: request.signal },
     );
     const bytes = Uint8Array.from(image.bytes).buffer;

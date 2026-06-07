@@ -1,3 +1,5 @@
+import { classifyVisualRequest } from "./visual-intent";
+
 const DEFAULT_INDEX = "paige-docs";
 const DEFAULT_MODEL = "openai/gpt-5.4-mini";
 const MOSS_AUTH_URL = "https://service.usemoss.dev/identity/auth/token";
@@ -200,6 +202,7 @@ function searchTerms(question: string): string[] {
 export function shouldRetrieveCompanyDocuments(question: string): boolean {
   const normalized = question.trim();
   if (!normalized) return false;
+  if (classifyVisualRequest(normalized) === "creative") return false;
 
   const companyEvidenceCue =
     /\b(?:fdc|company|our|q[1-4]|quarter\s*[1-4]|first quarter|second quarter|third quarter|fourth quarter|fy20\d{2}|20\d{2}|report|pdf|document|source|citation|evidence|data|statistic|metric|revenue|arr|margin|income|cash flow|customer|renewal|pipeline|incident|security|compliance|headcount|employee|forecast|budget|sales|support|roadmap|booking|churn|retention|nrr|graph|chart|visual|compare)\b/i;
@@ -531,9 +534,21 @@ function buildPrompt(
 }
 
 function questionRequestsChart(question: string): boolean {
-  return /\b(compare|comparison|trend|chart|graph|visual|visuali[sz]e|across|breakdown|versus|vs\.?|over time|by year|by quarter|by month|change[ds]?|grow|grew|growth|increase[ds]?|decrease[ds]?|rose|fell|history)\b/i.test(
-    question,
-  );
+  const explicitChartOrComparison =
+    /\b(chart|graph|plot|trend|compare|comparison|across|breakdown|versus|vs\.?|over time|by year|by quarter|by month|change[ds]?|grow|grew|growth|increase[ds]?|decrease[ds]?|rose|fell|history)\b/i.test(
+      question,
+    );
+  const multiPeriodDataImage =
+    classifyVisualRequest(question) === "data" &&
+    /\b(?:revenue|arr|margin|income|cash flow|customers?|headcount|employees?|bookings?|churn|retention|nrr)\b/i.test(
+      question,
+    ) &&
+    (requestedYearLabels(question).size >= 2 ||
+      requestedQuarterLabels(question).size >= 2);
+  const quarterlyReportVisual =
+    classifyVisualRequest(question) === "data" &&
+    requestsQuarterlyReportCollection(question);
+  return explicitChartOrComparison || multiPeriodDataImage || quarterlyReportVisual;
 }
 
 interface ExtractedTableChart {
@@ -563,7 +578,6 @@ function requestedMetric(question: string): string[] | null {
   if (explicit) return explicit;
   if (
     questionRequestsChart(question) &&
-    requestedYearLabels(question).size > 0 &&
     /\b(?:quarter|quarterly|reports?)\b/i.test(question)
   ) {
     return ["revenue"];
@@ -1521,6 +1535,17 @@ export async function askPaige(
   question: string,
   dependencies: AnswerDependencies = {},
 ): Promise<PaigeAnswer> {
+  if (classifyVisualRequest(question) === "creative") {
+    const model =
+      (dependencies.environment ?? process.env).TRUEFOUNDRY_MODEL?.trim() || DEFAULT_MODEL;
+    return {
+      answer: "I’ll create that visual for everyone now.",
+      citations: [],
+      chart: null,
+      model,
+    };
+  }
+
   if (!shouldRetrieveCompanyDocuments(question)) {
     return generateConversationalAnswer(question, dependencies);
   }

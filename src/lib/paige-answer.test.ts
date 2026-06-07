@@ -615,6 +615,49 @@ describe("generateAnswerFromDocuments", () => {
     expect(answer.chart?.values).toEqual([120, 150, 210]);
   });
 
+  test("does not force a numeric chart for a grounded nonnumeric image", async () => {
+    const securityDocument: RetrievedDocument = {
+      sourceFile: "security-review.pdf",
+      page: "2",
+      text: "The largest gap is incomplete vendor access recertification.",
+    };
+    const answer = await generateAnswerFromDocuments(
+      "Create an image of our biggest security gap.",
+      [securityDocument],
+      {
+        fetchImpl: async (_input, init) => {
+          const request = JSON.parse(String(init?.body));
+          const chartSchema =
+            request.response_format.json_schema.schema.properties.chart;
+          expect(chartSchema.anyOf).toBeArray();
+
+          return Response.json({
+            choices: [
+              {
+                message: {
+                  content: JSON.stringify({
+                    answer: "The biggest gap is incomplete vendor access recertification.",
+                    citations: [1],
+                    chart: null,
+                  }),
+                },
+              },
+            ],
+          });
+        },
+        environment: {
+          TRUEFOUNDRY_BASE_URL: "https://gateway.truefoundry.ai",
+          TRUEFOUNDRY_API_KEY: "test-key",
+        },
+      },
+    );
+
+    expect(answer.citations).toEqual([
+      { sourceFile: "security-review.pdf", page: "2" },
+    ]);
+    expect(answer.chart).toBeNull();
+  });
+
   test("falls back to a deterministic source-table chart when the model omits one", async () => {
     const answer = await generateAnswerFromDocuments(
       "Compare Q3 revenue from 2022 through 2025",
@@ -711,6 +754,33 @@ describe("generateAnswerFromDocuments", () => {
     expect(answer.citations[0]?.sourceFile).toBe(
       "fdc/FDC Q2 2025 Quarterly Report.pdf",
     );
+  });
+
+  test("extracts grounded data when the user asks for an image instead of a graph", async () => {
+    let modelCalled = false;
+    const answer = await generateAnswerFromDocuments(
+      "Create an image comparing Q2 revenue this year and last year.",
+      q2Documents,
+      {
+        fetchImpl: async () => {
+          modelCalled = true;
+          return Response.json({});
+        },
+        environment: {
+          TRUEFOUNDRY_BASE_URL: "https://gateway.truefoundry.ai",
+          TRUEFOUNDRY_API_KEY: "test-key",
+        },
+      },
+    );
+
+    expect(modelCalled).toBe(false);
+    expect(answer.chart).toEqual({
+      title: "REVENUE — Q2 comparison",
+      labels: ["Q2 2025 actual", "Q2 2026 forecast"],
+      values: [16.8, 21.6],
+      unit: "USD millions",
+    });
+    expect(answer.citations).toHaveLength(2);
   });
 
   test("lists all available quarterly reports for a relative year", async () => {
@@ -810,9 +880,15 @@ describe("retrieval intent", () => {
   test("bypasses Moss for obvious conversation and keeps company questions grounded", () => {
     expect(shouldRetrieveCompanyDocuments("Hi Paige, can you introduce yourself?")).toBe(false);
     expect(shouldRetrieveCompanyDocuments("What's the weather like today?")).toBe(false);
+    expect(
+      shouldRetrieveCompanyDocuments("Draw a futuristic retail operations command center."),
+    ).toBe(false);
     expect(shouldRetrieveCompanyDocuments("What are the key statistics in our Q2 report?")).toBe(
       true,
     );
+    expect(
+      shouldRetrieveCompanyDocuments("Draw a comparison of our Q2 revenue."),
+    ).toBe(true);
   });
 
   test("expands relative demo periods without changing explicit years", () => {
@@ -855,6 +931,22 @@ describe("FDC quarterly corpus", () => {
 });
 
 describe("askPaige conversational fallback", () => {
+  test("acknowledges a creative image without calling Moss or the answer model", async () => {
+    let called = false;
+    const answer = await askPaige("Draw a futuristic retail operations command center.", {
+      environment: conversationEnvironment,
+      fetchImpl: async () => {
+        called = true;
+        throw new Error("Creative images should not call retrieval or the answer model");
+      },
+    });
+
+    expect(called).toBe(false);
+    expect(answer.answer).toContain("create that visual");
+    expect(answer.citations).toEqual([]);
+    expect(answer.chart).toBeNull();
+  });
+
   test("answers obvious conversation without calling Moss", async () => {
     let mossCalled = false;
     const answer = await askPaige("Hi Paige, can you introduce yourself?", {

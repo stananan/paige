@@ -14,9 +14,10 @@ Built for the **YC Conversational AI Hackathon** (Jun 6–7 2026), Co-Pilot trac
    participant is transcribed separately, and typed spaces never activate recording.
 2. **Shared grounded response** — every participant sees and hears the same spoken takeaway,
    cited card, generated visual, and PDF page preview inside Paige's equal-sized tile.
-3. **Safe generated visuals** — MiniMax supplies a native 16:9 presentation image while
-   exact source values are overlaid in HTML. Generated pixels are visual context, never
-   evidence; there is no SVG image fallback.
+3. **Safe generated visuals** — data visuals require a grounded chart or citations, while
+   creative drawing requests bypass document retrieval. MiniMax receives a subject-specific
+   native 16:9 prompt; exact source values are overlaid in HTML and generated pixels are
+   never evidence.
 4. **Citations on every answer** — clickable source PDF + page, from Moss metadata. Chart
    labels and values are copied from retrieved PDF tables and validated before rendering.
 
@@ -57,7 +58,7 @@ Smoke-test Qwen image generation (writes to ignored `data/.qwen-test/`):
 - [x] **Paige presence + general chat** — Paige remains the same size as every webcam tile and renders cited answers/charts inside her tile. The text dock can be closed and reopened. Obvious conversational prompts bypass Moss; ambiguous business prompts still retrieve.
 - [x] **13–16 Citations + chart polish** — every evidence chip opens the exact public PDF page; charts render and are value-grounded across one or more cited source PDFs
 - [x] **Shared meeting experience** — LiveKit reliable packets synchronize attributed transcripts, answers, PDF previews, and image streams; every browser plays MiniMax TTS
-- [x] **16–19 Image presentation** — MiniMax Image-01 returns a native 16:9 binary image shown to everyone; exact values remain source-grounded HTML overlays and failed generation shows no synthetic fallback
+- [x] **16–19 Image presentation** — MiniMax Image-01 returns a subject-specific native 16:9 image shown to everyone; unsupported data requests do not generate, valid image/draw/chart synonyms share deterministic extraction, and exact values remain source-grounded HTML overlays
 - [ ] **19–21 Stretch: live upload** — one "upload a doc" → live Unsiloed parse → answerable
 - [ ] **21–23 Rehearse + harden** — run the full demo twice; prep a recorded fallback clip
 - [ ] **23–24 Submit** — lock build, write submission, demo script

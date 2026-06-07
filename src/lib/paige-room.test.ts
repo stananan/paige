@@ -94,8 +94,9 @@ describe("Paige room protocol", () => {
     expect(interactionIdFromImageName(name)).toBe("answer-123");
   });
 
-  test("generates AI visuals for every chart and explicit image request", () => {
+  test("generates visuals only when the request has a valid visual path", () => {
     const chartAnswer = {
+      answer: "Revenue increased.",
       chart: {
         title: "Revenue",
         labels: ["Q2 2025", "Q2 2026"],
@@ -107,19 +108,45 @@ describe("Paige room protocol", () => {
     expect(shouldGenerateVisual("Pull up the Q2 numbers", chartAnswer)).toBe(true);
     expect(
       shouldGenerateVisual("Make an image of the report", {
+        answer: "The report shows a stronger Q2 outlook.",
+        citations: [{ sourceFile: "q2.pdf", page: "1" }],
         chart: null,
       }),
     ).toBe(true);
     expect(
       shouldGenerateVisual("What did the report say?", {
+        answer: "The report shows a stronger Q2 outlook.",
+        citations: [{ sourceFile: "q2.pdf", page: "1" }],
         chart: null,
       }),
     ).toBe(false);
-    expect(shouldGenerateVisual("Draw something for this data", { chart: null })).toBe(
-      true,
-    );
-    expect(shouldGenerateVisual("Generate one for everyone", { chart: null })).toBe(
-      true,
-    );
+    expect(
+      shouldGenerateVisual("Draw something for this data", {
+        answer: "I don't see the underlying figures in the indexed documents.",
+        citations: [],
+        chart: null,
+      }),
+    ).toBe(false);
+    expect(
+      shouldGenerateVisual("Draw a futuristic retail operations command center", {
+        answer: "I’ll create that visual for everyone now.",
+        citations: [],
+        chart: null,
+      }),
+    ).toBe(true);
+    expect(
+      shouldGenerateVisual("Visualize a futuristic retail operations command center", {
+        answer: "I’ll create that visual for everyone now.",
+        citations: [],
+        chart: null,
+      }),
+    ).toBe(true);
+    expect(
+      shouldGenerateVisual("Create a graph comparing Q5 revenue in 2030 and 2031", {
+        answer: "I couldn't find those figures in the indexed documents.",
+        citations: [],
+        chart: null,
+      }),
+    ).toBe(false);
   });
 });

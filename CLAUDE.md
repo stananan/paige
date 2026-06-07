@@ -6,7 +6,8 @@ available and never triggers recording. On command she
 retrieves from a Moss semantic index, speaks a one-line cited answer through MiniMax Speech
 2.8 HD, and renders a generated visual from retrieved PDF values. The answer LLM runs
 through TrueFoundry. MiniMax Image-01 creates every requested 16:9 visual; exact labels and
-values render as HTML over the generated pixels, with no SVG image fallback.
+values render as HTML over the generated pixels, with no SVG image fallback. Grounded data
+visuals require citations or a chart; creative scenes bypass Moss and use the literal subject.
 Built for the YC Conversational AI Hackathon, Jun 6–7 2026.
 
 - Full approved design/plan: `~/.gstack/projects/paige/stanleyho-unknown-design-20260606-154311.md`
