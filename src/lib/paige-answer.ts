@@ -1,11 +1,11 @@
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { MossClient, type QueryResultDocumentInfo } from "@moss-dev/moss";
-
 const DEFAULT_INDEX = "paige-docs";
 const DEFAULT_MODEL = "openai/gpt-5.4-mini";
+const MOSS_AUTH_URL = "https://service.usemoss.dev/identity/auth/token";
+const MOSS_QUERY_URL = "https://service.usemoss.dev/query";
+const MOSS_MANAGE_URL = "https://service.usemoss.dev/manage";
 const MAX_CONTEXT_CHARS = 12_000;
 const RETRIEVAL_TIMEOUT_MS = 12_000;
+const MOSS_QUERY_TIMEOUT_MS = 3_000;
 const MODEL_TIMEOUT_MS = 15_000;
 
 export interface PaigeCitation {
@@ -52,9 +52,6 @@ interface NumberMention {
   qualifiers: Set<string>;
 }
 
-let mossClient: MossClient | undefined;
-let mossLoadPromise: Promise<void> | undefined;
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -100,35 +97,164 @@ async function withTimeout<T>(
   }
 }
 
-function toRetrievedDocument(document: QueryResultDocumentInfo): RetrievedDocument | null {
-  const sourceFile = document.metadata?.sourceFile;
-  const page = document.metadata?.page;
-  if (!sourceFile || !page || !document.text.trim()) return null;
-  return { text: document.text.trim(), sourceFile, page };
+function toRetrievedDocument(value: unknown): RetrievedDocument | null {
+  if (!isRecord(value) || typeof value.text !== "string" || !isRecord(value.metadata)) {
+    return null;
+  }
+  const sourceFile = value.metadata.sourceFile;
+  const page = value.metadata.page;
+  if (
+    typeof sourceFile !== "string" ||
+    typeof page !== "string" ||
+    !sourceFile.trim() ||
+    !page.trim() ||
+    !value.text.trim()
+  ) {
+    return null;
+  }
+  return {
+    text: value.text.trim(),
+    sourceFile: sourceFile.trim(),
+    page: page.trim(),
+  };
 }
 
-async function getMossDocuments(
+function rankDocuments(question: string, documents: RetrievedDocument[]): RetrievedDocument[] {
+  const ignored = new Set([
+    "about",
+    "across",
+    "after",
+    "before",
+    "compare",
+    "company",
+    "document",
+    "from",
+    "reported",
+    "show",
+    "that",
+    "the",
+    "their",
+    "this",
+    "what",
+    "when",
+    "where",
+    "which",
+    "with",
+    "years",
+  ]);
+  const terms = [
+    ...new Set(
+      question
+        .toLowerCase()
+        .match(/[a-z0-9]+/g)
+        ?.filter((term) => term.length >= 3 && !ignored.has(term)) ?? [],
+    ),
+  ];
+
+  return documents
+    .map((document, index) => {
+      const haystack = `${document.sourceFile}\n${document.text}`.toLowerCase();
+      const score = terms.reduce(
+        (total, term) => total + (haystack.includes(term) ? 1 : 0),
+        0,
+      );
+      return { document, index, score };
+    })
+    .sort((left, right) => right.score - left.score || left.index - right.index)
+    .slice(0, 5)
+    .map(({ document }) => document);
+}
+
+async function queryMossCloud(
   question: string,
   environment: Environment,
+  fetchImpl: FetchLike,
+  signal?: AbortSignal,
 ): Promise<RetrievedDocument[]> {
   const projectId = requireValue(environment, "MOSS_PROJECT_ID");
   const projectKey = requireValue(environment, "MOSS_PROJECT_KEY");
   const indexName = environment.MOSS_INDEX?.trim() || DEFAULT_INDEX;
+  const requestSignal = signal
+    ? AbortSignal.any([signal, AbortSignal.timeout(MOSS_QUERY_TIMEOUT_MS)])
+    : AbortSignal.timeout(MOSS_QUERY_TIMEOUT_MS);
 
-  mossClient ??= new MossClient(projectId, projectKey);
-  mossLoadPromise ??= mossClient
-    .loadIndex(indexName, { cachePath: join(tmpdir(), "paige-moss-cache") })
-    .then(() => undefined)
-    .catch((error) => {
-      mossLoadPromise = undefined;
-      throw error;
-    });
-  await mossLoadPromise;
+  const authResponse = await fetchImpl(MOSS_AUTH_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ projectId, projectKey }),
+    signal: requestSignal,
+  });
+  const authBody = (await authResponse.json().catch(() => null)) as unknown;
+  if (!authResponse.ok || !isRecord(authBody) || typeof authBody.token !== "string") {
+    throw new Error(`Moss authentication failed with status ${authResponse.status}`);
+  }
 
-  const result = await mossClient.query(indexName, question, { topK: 5 });
-  return result.docs
+  const queryResponse = await fetchImpl(MOSS_QUERY_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${authBody.token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ query: question, indexName, topK: 5 }),
+    signal: requestSignal,
+  });
+  const queryBody = (await queryResponse.json().catch(() => null)) as unknown;
+  if (!queryResponse.ok || !isRecord(queryBody) || !Array.isArray(queryBody.docs)) {
+    throw new Error(`Moss cloud query failed with status ${queryResponse.status}`);
+  }
+
+  return queryBody.docs
     .map(toRetrievedDocument)
     .filter((document): document is RetrievedDocument => document !== null);
+}
+
+async function getAllMossDocuments(
+  environment: Environment,
+  fetchImpl: FetchLike,
+  signal?: AbortSignal,
+): Promise<RetrievedDocument[]> {
+  const projectId = requireValue(environment, "MOSS_PROJECT_ID");
+  const projectKey = requireValue(environment, "MOSS_PROJECT_KEY");
+  const indexName = environment.MOSS_INDEX?.trim() || DEFAULT_INDEX;
+  const requestSignal = signal
+    ? AbortSignal.any([signal, AbortSignal.timeout(RETRIEVAL_TIMEOUT_MS)])
+    : AbortSignal.timeout(RETRIEVAL_TIMEOUT_MS);
+  const response = await fetchImpl(MOSS_MANAGE_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-project-key": projectKey,
+    },
+    body: JSON.stringify({ action: "getDocs", projectId, indexName }),
+    signal: requestSignal,
+  });
+  const body = (await response.json().catch(() => null)) as unknown;
+  if (!response.ok || !Array.isArray(body)) {
+    throw new Error(`Moss document retrieval failed with status ${response.status}`);
+  }
+  return body
+    .map(toRetrievedDocument)
+    .filter((document): document is RetrievedDocument => document !== null);
+}
+
+export async function retrieveMossDocuments(
+  question: string,
+  dependencies: AnswerDependencies = {},
+): Promise<RetrievedDocument[]> {
+  const environment = dependencies.environment ?? process.env;
+  const fetchImpl = dependencies.fetchImpl ?? fetch;
+
+  try {
+    return await queryMossCloud(question, environment, fetchImpl, dependencies.signal);
+  } catch (error) {
+    if (dependencies.signal?.aborted) throw error;
+    const documents = await getAllMossDocuments(
+      environment,
+      fetchImpl,
+      dependencies.signal,
+    );
+    return rankDocuments(question, documents);
+  }
 }
 
 function buildPrompt(question: string, documents: RetrievedDocument[]): string {
@@ -455,9 +581,8 @@ export async function askPaige(
   question: string,
   dependencies: AnswerDependencies = {},
 ): Promise<PaigeAnswer> {
-  const environment = dependencies.environment ?? process.env;
   const documents = await withTimeout(
-    getMossDocuments(question, environment),
+    retrieveMossDocuments(question, dependencies),
     RETRIEVAL_TIMEOUT_MS,
     "Moss retrieval timed out",
     dependencies.signal,

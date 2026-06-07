@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   generateAnswerFromDocuments,
   parseModelAnswer,
+  retrieveMossDocuments,
   type RetrievedDocument,
 } from "./paige-answer";
 
@@ -17,6 +18,85 @@ const documents: RetrievedDocument[] = [
     text: "2025 revenue was $210 million, up 40 percent from 2024.",
   },
 ];
+
+const mossEnvironment = {
+  MOSS_PROJECT_ID: "project-id",
+  MOSS_PROJECT_KEY: "project-key",
+  MOSS_INDEX: "company-docs",
+};
+
+function asMossDocument(document: RetrievedDocument) {
+  return {
+    id: `${document.sourceFile}-${document.page}`,
+    text: document.text,
+    metadata: {
+      sourceFile: document.sourceFile,
+      page: document.page,
+    },
+  };
+}
+
+describe("retrieveMossDocuments", () => {
+  test("uses Moss semantic cloud query results when available", async () => {
+    const requests: string[] = [];
+    const results = await retrieveMossDocuments("revenue growth", {
+      environment: mossEnvironment,
+      fetchImpl: async (input, init) => {
+        const url = String(input);
+        requests.push(url);
+        if (url.endsWith("/identity/auth/token")) {
+          return Response.json({ token: "moss-token", expiresIn: 300 }, { status: 201 });
+        }
+        expect(init?.headers).toEqual({
+          Authorization: "Bearer moss-token",
+          "Content-Type": "application/json",
+        });
+        return Response.json({
+          docs: [asMossDocument(documents[1])],
+          query: "revenue growth",
+        });
+      },
+    });
+
+    expect(requests).toHaveLength(2);
+    expect(results).toEqual([documents[1]]);
+  });
+
+  test("falls back to ranked Moss getDocs results when cloud query is unavailable", async () => {
+    const unrelated: RetrievedDocument = {
+      sourceFile: "benefits.pdf",
+      page: "2",
+      text: "Employees receive twenty vacation days.",
+    };
+    const requests: string[] = [];
+    const results = await retrieveMossDocuments("What was revenue in 2025?", {
+      environment: mossEnvironment,
+      fetchImpl: async (input, init) => {
+        const url = String(input);
+        requests.push(url);
+        if (url.endsWith("/identity/auth/token")) {
+          return Response.json({ token: "moss-token", expiresIn: 300 }, { status: 201 });
+        }
+        if (url.endsWith("/query")) {
+          return new Response("Unavailable", { status: 503 });
+        }
+        expect(init?.headers).toEqual({
+          "Content-Type": "application/json",
+          "x-project-key": "project-key",
+        });
+        expect(JSON.parse(String(init?.body))).toEqual({
+          action: "getDocs",
+          projectId: "project-id",
+          indexName: "company-docs",
+        });
+        return Response.json([asMossDocument(unrelated), asMossDocument(documents[1])]);
+      },
+    });
+
+    expect(requests).toHaveLength(3);
+    expect(results[0]).toEqual(documents[1]);
+  });
+});
 
 describe("parseModelAnswer", () => {
   test("maps model citation indexes to retrieved source metadata", () => {

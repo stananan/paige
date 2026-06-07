@@ -39,10 +39,10 @@ Full approved design/plan (outside the repo): `~/.gstack/projects/paige/stanleyh
 
 ## The real next steps
 - **Task #3 — ingest: COMPLETE.** Live verification succeeded against Unsiloed and Moss.
-- **Task #4 — the fast beat (hero): IN PROGRESS.** `/api/ask` now performs warm-instance
-  Moss retrieval → **GPT-5.4 Mini via TrueFoundry** → a validated concise answer, citations,
-  and source-grounded chart data. `PaigeListener` renders the result and speaks it through
-  `/api/tts`. Complete browser QA and production verification before marking it done.
+- **Task #4 — the fast beat (hero): IN PROGRESS.** `/api/ask` now performs Moss cloud
+  retrieval (with a ranked `getDocs` fallback) → **GPT-5.4 Mini via TrueFoundry** → a
+  validated concise answer, citations, and source-grounded chart data. `PaigeListener`
+  renders the result and speaks it through `/api/tts`. Production verification remains.
 - Then: citations/chart polish (#5), Qwen-vs-MiniMax image race (#6), live upload (#7),
   rehearse (#8), submit (#9). See `README.md` for the full checklist.
 
@@ -100,10 +100,10 @@ In `.env` (gitignored). `.env.example` documents all. Deployed ones are also on 
 - Parked agent: `cd agent && uv sync && uv run agent.py dev` (needs `DEEPGRAM_API_KEY`)
 
 ## Gotchas / decisions (will save you time)
-1. **Vercel + Moss native binding:** `.vercelignore` must exclude the npm-11 lockfile because
-   Vercel currently rejects it with `npm error Invalid Version`. Keep the explicit Linux
-   optional dependency and `scripts/vercel-install.mjs`; the custom `vercel.json` install step
-   verifies Moss's N-API binary before the build.
+1. **Vercel + Moss:** `.vercelignore` must exclude the npm-11 lockfile because Vercel rejects
+   it with `npm error Invalid Version`. The Moss native binary also requires a newer
+   `libstdc++` than Vercel provides, so `/api/ask` uses Moss's HTTP query API with a ranked
+   `getDocs` fallback. Local ingestion continues to use the Moss SDK.
 2. **MiniMax TTS needs no GroupId** with this key. `POST api.minimax.io/v1/t2a_v2`, Bearer auth.
 3. **Web Speech hears "Paige" as "page"** → wake matching accepts homophones. **Chrome only.**
 4. **Don't leave test sessions in `/room`** — they appear as ghost participants. Navigate away
