@@ -2,9 +2,10 @@
 
 A LiveKit meeting room for the human participants, with Paige running in a browser-side
 copilot panel. Paige listens and acts only when addressed by name ("Paige, …"). On command she
-retrieves from a Moss semantic index, speaks a one-line cited answer, shows a chart, then a
-beat later drops in a generated image (Qwen via DashScope vs MiniMax). The answer LLM runs
-through TrueFoundry.
+retrieves from a Moss semantic index, speaks a one-line cited answer through MiniMax Speech
+2.8 HD, and renders a deterministic chart from retrieved PDF values. The answer LLM runs
+through TrueFoundry. Generated images are not shown for factual answers because they can
+distort labels and values.
 Built for the YC Conversational AI Hackathon, Jun 6–7 2026.
 
 - Full approved design/plan: `~/.gstack/projects/paige/stanleyho-unknown-design-20260606-154311.md`
@@ -14,6 +15,6 @@ Built for the YC Conversational AI Hackathon, Jun 6–7 2026.
   time via `bun run ingest --company=<folder>`.
   `bun run demo:seed` regenerates and ingests the FDC demo company. Demo runs on a warm
   Moss index, not live Drive.
-- Demo-first: protect the hero beat (a cited answer arriving live). Wire the image race LAST.
+- Demo-first: protect the hero beat (a cited answer and grounded chart arriving live).
 
 @AGENTS.md

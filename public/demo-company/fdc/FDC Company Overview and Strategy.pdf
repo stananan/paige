@@ -1,0 +1,125 @@
+%PDF-1.4
+% PAIGE FDC
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R 5 0 R] /Count 2 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 7 0 R >> >> /Contents 4 0 R >>
+endobj
+4 0 obj
+<< /Length 1359 >>
+stream
+BT
+/F1 18 Tf
+1 0 0 1 54 738 Tm
+(Company profile) Tj
+/F1 8 Tf
+1 0 0 1 54 716 Tm
+(FDC CONFIDENTIAL - SYNTHETIC DEMO DATA) Tj
+/F1 10 Tf
+1 0 0 1 54 686 Tm
+(Fake Demo Company, Inc. \(FDC\) is a Denver-based B2B software company founded in 2018.) Tj
+1 0 0 1 54 672 Tm
+(FDC helps multi-location retail and field-service businesses connect inventory,) Tj
+1 0 0 1 54 658 Tm
+(dispatch, purchasing, and finance operations.) Tj
+1 0 0 1 54 644 Tm
+(The company has 286 employees and 428 active customers as of March 31, 2026.) Tj
+1 0 0 1 54 630 Tm
+(FDC is a Series C company. The fiscal year ends on December 31.) Tj
+1 0 0 1 54 616 Tm
+1 0 0 1 54 602 Tm
+(PRODUCTS) Tj
+1 0 0 1 54 588 Tm
+(RelayOS: workflow and inventory orchestration for distributed operations.) Tj
+1 0 0 1 54 574 Tm
+(LedgerLens: purchasing, spend controls, and financial variance analytics.) Tj
+1 0 0 1 54 560 Tm
+(FieldSync: technician dispatch, mobile work orders, and route coordination.) Tj
+1 0 0 1 54 546 Tm
+1 0 0 1 54 532 Tm
+(CUSTOMER PROFILE) Tj
+1 0 0 1 54 518 Tm
+(Core customers operate 25 to 1,500 locations and have complex frontline workflows.) Tj
+1 0 0 1 54 504 Tm
+(Revenue mix is 75% North America, 18% EMEA, and 7% APAC.) Tj
+1 0 0 1 54 490 Tm
+(No single customer represents more than 4.2% of ARR. The top ten represent 24%.) Tj
+/F1 8 Tf
+1 0 0 1 54 36 Tm
+(Fake Demo Company | Page 1 of 2) Tj
+ET
+endstream
+endobj
+5 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 7 0 R >> >> /Contents 6 0 R >>
+endobj
+6 0 obj
+<< /Length 1327 >>
+stream
+BT
+/F1 18 Tf
+1 0 0 1 54 738 Tm
+(2026 strategy and board targets) Tj
+/F1 8 Tf
+1 0 0 1 54 716 Tm
+(FDC CONFIDENTIAL - SYNTHETIC DEMO DATA) Tj
+/F1 10 Tf
+1 0 0 1 54 686 Tm
+(FDC's 2026 strategy is to become the operating system for distributed service) Tj
+1 0 0 1 54 672 Tm
+(businesses.) Tj
+1 0 0 1 54 658 Tm
+1 0 0 1 54 644 Tm
+(BOARD TARGETS) Tj
+1 0 0 1 54 630 Tm
+(1. Reach $100 million in ARR by the end of Q4 2026.) Tj
+1 0 0 1 54 616 Tm
+(2. Keep gross margin at or above 75% while scaling AI-assisted workflows.) Tj
+1 0 0 1 54 602 Tm
+(3. Grow EMEA from 18% to 23% of revenue without lowering company-wide NRR below 120%.) Tj
+1 0 0 1 54 588 Tm
+(4. Deliver positive operating cash flow for the full fiscal year.) Tj
+1 0 0 1 54 574 Tm
+1 0 0 1 54 560 Tm
+(TOP COMPANY PRIORITIES) Tj
+1 0 0 1 54 546 Tm
+(Improve enterprise implementation time from 74 days to below 55 days.) Tj
+1 0 0 1 54 532 Tm
+(Launch EU data residency by September 2026.) Tj
+1 0 0 1 54 518 Tm
+(Increase FieldSync weekly active usage from 62% to 72%.) Tj
+1 0 0 1 54 504 Tm
+(Reduce preventable SEV-2 incidents to fewer than one per quarter.) Tj
+1 0 0 1 54 490 Tm
+1 0 0 1 54 476 Tm
+(PRIMARY RISKS) Tj
+1 0 0 1 54 462 Tm
+(Enterprise implementation capacity, EMEA hiring speed, and cloud inference cost.) Tj
+/F1 8 Tf
+1 0 0 1 54 36 Tm
+(Fake Demo Company | Page 2 of 2) Tj
+ET
+endstream
+endobj
+7 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000021 00000 n 
+0000000070 00000 n 
+0000000133 00000 n 
+0000000259 00000 n 
+0000001669 00000 n 
+0000001795 00000 n 
+0000003173 00000 n 
+trailer
+<< /Size 8 /Root 1 0 R >>
+startxref
+3243
+%%EOF

@@ -23,11 +23,6 @@ function extractCommand(transcript: string): string | null {
   return transcript.slice(at + len).replace(/^[\s,.:!?]+/, "").trim();
 }
 
-export interface GeneratedImage {
-  dataUrl: string;
-  model: string;
-}
-
 export interface PaigeState {
   supported: boolean;
   listening: boolean;
@@ -36,9 +31,7 @@ export interface PaigeState {
   heard: string;
   reply: PaigeAnswer | null;
   error: string;
-  image: GeneratedImage | null;
-  imageLoading: boolean;
-  /** Reply carries something worth putting on the shared screen (citation/chart). */
+  /** Reply carries something worth presenting inside Paige's tile. */
   presenting: boolean;
   input: string;
   setInput: (value: string) => void;
@@ -52,9 +45,8 @@ function isGrounded(reply: PaigeAnswer | null): boolean {
   return Boolean(reply && (reply.citations.length > 0 || reply.chart));
 }
 
-// Paige's brain: Web Speech wake-word listening, TTS playback, the /api/ask call,
-// and the slow-beat /api/image race. Lifted to a hook so the participant tile, the
-// shared-screen stage, and the control dock all read one shared state.
+// Paige's brain: Web Speech wake-word listening, TTS playback, and the /api/ask
+// call. Lifted to a hook so the participant tile and control dock share one state.
 export function usePaige(): PaigeState {
   const [supported, setSupported] = useState(true);
   const [listening, setListening] = useState(false);
@@ -64,14 +56,11 @@ export function usePaige(): PaigeState {
   const [input, setInput] = useState("");
   const [thinking, setThinking] = useState(false);
   const [error, setError] = useState("");
-  const [image, setImage] = useState<GeneratedImage | null>(null);
-  const [imageLoading, setImageLoading] = useState(false);
 
   const recogRef = useRef<SpeechRecognitionLike | null>(null);
   const speakingRef = useRef(false);
   const wantListeningRef = useRef(false);
   const requestRef = useRef<AbortController | null>(null);
-  const imageRequestRef = useRef<AbortController | null>(null);
 
   const speak = useCallback(async (text: string) => {
     setSpeaking(true);
@@ -108,49 +97,16 @@ export function usePaige(): PaigeState {
     }
   }, []);
 
-  // The slow beat: a generated illustration via the Qwen/MiniMax race. Best-effort
-  // — if it fails, Paige keeps the cited card/chart and shows nothing extra.
-  const generateImage = useCallback(async (topic: string) => {
-    imageRequestRef.current?.abort();
-    const controller = new AbortController();
-    imageRequestRef.current = controller;
-    setImage(null);
-    setImageLoading(true);
-    try {
-      const res = await fetch("/api/image", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic }),
-        signal: controller.signal,
-      });
-      if (!res.ok) return;
-      const data = (await res.json()) as { dataUrl?: string; model?: string };
-      if (typeof data.dataUrl === "string" && data.dataUrl.startsWith("data:image/")) {
-        setImage({ dataUrl: data.dataUrl, model: data.model ?? "AI" });
-      }
-    } catch {
-      // swallow — image is a flourish, never required
-    } finally {
-      if (imageRequestRef.current === controller) {
-        imageRequestRef.current = null;
-        setImageLoading(false);
-      }
-    }
-  }, []);
-
   const ask = useCallback(
     async (command: string) => {
       const q = command.trim();
       if (!q) return;
 
       requestRef.current?.abort();
-      imageRequestRef.current?.abort();
       const controller = new AbortController();
       requestRef.current = controller;
       setThinking(true);
       setReply(null);
-      setImage(null);
-      setImageLoading(false);
       setError("");
       try {
         const response = await fetch("/api/ask", {
@@ -165,8 +121,6 @@ export function usePaige(): PaigeState {
         setReply(body);
         setThinking(false);
         if (requestRef.current === controller) requestRef.current = null;
-        // Kick off the image race only when she's actually presenting data.
-        if (isGrounded(body)) void generateImage(body.answer || q);
         await speak(body.answer);
       } catch (reason) {
         if (controller.signal.aborted) return;
@@ -178,7 +132,7 @@ export function usePaige(): PaigeState {
         }
       }
     },
-    [speak, generateImage],
+    [speak],
   );
 
   const handleTranscript = useCallback(
@@ -229,7 +183,6 @@ export function usePaige(): PaigeState {
 
     return () => {
       requestRef.current?.abort();
-      imageRequestRef.current?.abort();
       wantListeningRef.current = false;
       try {
         recog.abort();
@@ -268,10 +221,7 @@ export function usePaige(): PaigeState {
   );
 
   const dismiss = useCallback(() => {
-    imageRequestRef.current?.abort();
     setReply(null);
-    setImage(null);
-    setImageLoading(false);
     setError("");
   }, []);
 
@@ -283,8 +233,6 @@ export function usePaige(): PaigeState {
     heard,
     reply,
     error,
-    image,
-    imageLoading,
     presenting: isGrounded(reply),
     input,
     setInput,
@@ -309,11 +257,50 @@ function statusColor(paige: PaigeState): string {
   return "bg-white/30";
 }
 
-// Paige rendered as a peer in the participant grid — her own avatar, name, and a
-// live status light, so she reads as the third participant rather than a sidebar.
+// Paige stays the same size as every webcam tile. Grounded answers render inside
+// her tile, so presenting data never takes over the room or enlarges her window.
 export function PaigeTile({ paige, compact = false }: { paige: PaigeState; compact?: boolean }) {
   const active = paige.speaking || paige.thinking || paige.listening;
   const conversational = paige.reply && !paige.presenting ? paige.reply.answer : "";
+
+  if (!compact && paige.reply && paige.presenting) {
+    return (
+      <div className="relative flex h-full w-full flex-col overflow-hidden rounded-lg bg-[#070d18] text-white">
+        <div className="flex items-center justify-between border-b border-white/10 bg-white/[0.03] px-3 py-2">
+          <div className="flex items-center gap-2">
+            <span className={`h-2 w-2 rounded-full ${statusColor(paige)} ${active ? "animate-pulse" : ""}`} />
+            <span className="text-xs font-medium">Paige · cited answer</span>
+          </div>
+          <button
+            type="button"
+            onClick={paige.dismiss}
+            className="rounded-full border border-white/15 px-2 py-0.5 text-[10px] text-white/70 hover:bg-white/10"
+            aria-label="Close Paige answer"
+          >
+            Close ✕
+          </button>
+        </div>
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
+          <p className="text-sm font-semibold leading-snug text-emerald-100">
+            {paige.reply.answer}
+          </p>
+          {paige.reply.chart && <AnswerChart chart={paige.reply.chart} />}
+          {paige.reply.citations.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {paige.reply.citations.map((citation) => (
+                <span
+                  key={`${citation.sourceFile}-${citation.page}`}
+                  className="rounded border border-white/10 bg-white/5 px-1.5 py-1 text-[9px] text-white/60"
+                >
+                  {citation.sourceFile} · p.{citation.page}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative flex h-full w-full flex-col items-center justify-center overflow-hidden rounded-lg bg-gradient-to-br from-[#10233b] via-[#0b1626] to-[#0a0f1c] text-white">
@@ -353,88 +340,9 @@ export function PaigeTile({ paige, compact = false }: { paige: PaigeState; compa
   );
 }
 
-// Paige's "screen share": when she has a cited answer she takes the main stage and
-// presents the spoken takeaway, a deterministic chart, citations, and — a beat
-// later — the generated illustration labeled with the model that won the race.
-export function PaigeStage({ paige }: { paige: PaigeState }) {
-  const { reply, image, imageLoading } = paige;
-  if (!reply) return null;
-
-  return (
-    <div className="flex h-full w-full flex-col overflow-hidden rounded-xl border border-emerald-400/20 bg-[#070d18] text-white shadow-2xl">
-      <div className="flex items-center justify-between border-b border-white/10 bg-white/[0.03] px-4 py-2.5">
-        <div className="flex items-center gap-2">
-          <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
-          <span className="text-sm font-medium">Paige is sharing her screen</span>
-        </div>
-        <button
-          onClick={paige.dismiss}
-          className="rounded-full border border-white/15 px-2 py-0.5 text-xs text-white/70 hover:bg-white/10"
-          aria-label="Stop sharing"
-        >
-          Stop sharing ✕
-        </button>
-      </div>
-
-      <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto p-5 lg:grid-cols-[1.1fr_0.9fr]">
-        <div className="flex flex-col gap-4">
-          <p className="text-balance text-2xl font-semibold leading-snug text-emerald-100">
-            {reply.answer}
-          </p>
-          {reply.chart && <AnswerChart chart={reply.chart} large />}
-          {reply.citations.length > 0 && (
-            <div>
-              <p className="mb-1.5 font-mono text-[10px] uppercase tracking-wider text-white/40">
-                Sources
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {reply.citations.map((citation) => (
-                  <span
-                    key={`${citation.sourceFile}-${citation.page}`}
-                    className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-white/70"
-                  >
-                    {citation.sourceFile} · p.{citation.page}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-
-        <figure className="flex min-h-[220px] flex-col overflow-hidden rounded-xl border border-white/10 bg-white/[0.03]">
-          <div className="relative flex flex-1 items-center justify-center">
-            {image ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={image.dataUrl}
-                alt="Paige generated illustration"
-                className="h-full w-full object-cover"
-              />
-            ) : imageLoading ? (
-              <div className="flex flex-col items-center gap-3 text-white/50">
-                <span className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-emerald-300" />
-                <span className="text-xs">Generating a visual…</span>
-              </div>
-            ) : (
-              <span className="text-xs text-white/30">No generated visual</span>
-            )}
-          </div>
-          <figcaption className="border-t border-white/10 px-3 py-2 text-[11px] text-white/55">
-            {image
-              ? `Generated illustration · ${image.model}`
-              : imageLoading
-                ? "Qwen vs MiniMax racing…"
-                : "Generated visual (illustrative, not a data source)"}
-          </figcaption>
-        </figure>
-      </div>
-    </div>
-  );
-}
-
-// Always-visible control surface: mic toggle, what Paige heard, the type-to-Paige
-// box, and any error. Kept compact and docked so it never hides the meeting.
-export function PaigeDock({ paige }: { paige: PaigeState }) {
+// Dismissible control surface: mic toggle, what Paige heard, the type-to-Paige
+// box, and any error. Closing it does not disable wake-word listening.
+export function PaigeDock({ paige, onClose }: { paige: PaigeState; onClose: () => void }) {
   const active = paige.speaking || paige.thinking || paige.listening;
   return (
     <div className="pointer-events-auto absolute bottom-20 right-4 z-20 w-[min(22rem,calc(100vw-2rem))] rounded-2xl border border-white/10 bg-black/75 p-3 text-white shadow-2xl backdrop-blur">
@@ -443,15 +351,26 @@ export function PaigeDock({ paige }: { paige: PaigeState }) {
           <span className={`h-2.5 w-2.5 rounded-full ${statusColor(paige)} ${active ? "animate-pulse" : ""}`} />
           <span className="text-sm font-semibold tracking-tight">Paige</span>
         </div>
-        {paige.supported && (
+        <div className="flex items-center gap-1.5">
+          {paige.supported && (
+            <button
+              type="button"
+              onClick={paige.toggle}
+              className="rounded-full border border-white/20 px-2 py-0.5 text-xs hover:bg-white/10"
+            >
+              {statusLabel(paige)}
+              {active ? "…" : ""}
+            </button>
+          )}
           <button
-            onClick={paige.toggle}
-            className="rounded-full border border-white/20 px-2 py-0.5 text-xs hover:bg-white/10"
+            type="button"
+            onClick={onClose}
+            className="rounded-full border border-white/20 px-2 py-0.5 text-xs text-white/70 hover:bg-white/10"
+            aria-label="Close Paige text window"
           >
-            {statusLabel(paige)}
-            {active ? "…" : ""}
+            ✕
           </button>
-        )}
+        </div>
       </div>
 
       <p className="mt-2 text-[11px] text-white/45">

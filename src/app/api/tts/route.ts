@@ -7,7 +7,9 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const MINIMAX_T2A = "https://api.minimax.io/v1/t2a_v2";
-const PAIGE_VOICE = "Wise_Woman";
+const PAIGE_MODEL = "speech-2.8-hd";
+const PAIGE_VOICE = "English_radiant_girl";
+const PAIGE_SPEED = 1.2;
 
 export async function POST(req: NextRequest) {
   const apiKey = process.env.MINIMAX_API_KEY;
@@ -32,10 +34,12 @@ export async function POST(req: NextRequest) {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: "speech-02-hd",
+      model: PAIGE_MODEL,
       text,
       stream: false,
-      voice_setting: { voice_id: voiceId, speed: 1, vol: 1, pitch: 0 },
+      language_boost: "English",
+      output_format: "hex",
+      voice_setting: { voice_id: voiceId, speed: PAIGE_SPEED, vol: 1, pitch: 0 },
       audio_setting: { sample_rate: 32000, bitrate: 128000, format: "mp3", channel: 1 },
     }),
   });

@@ -1,0 +1,113 @@
+%PDF-1.4
+% PAIGE FDC
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R 5 0 R] /Count 2 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 7 0 R >> >> /Contents 4 0 R >>
+endobj
+4 0 obj
+<< /Length 963 >>
+stream
+BT
+/F1 18 Tf
+1 0 0 1 54 738 Tm
+(Workforce snapshot) Tj
+/F1 8 Tf
+1 0 0 1 54 716 Tm
+(FDC CONFIDENTIAL - SYNTHETIC DEMO DATA) Tj
+/F1 10 Tf
+1 0 0 1 54 686 Tm
+(FDC has 286 employees as of March 31, 2026.) Tj
+1 0 0 1 54 672 Tm
+1 0 0 1 54 658 Tm
+(FUNCTION | HEADCOUNT) Tj
+1 0 0 1 54 644 Tm
+(Engineering and Product | 112) Tj
+1 0 0 1 54 630 Tm
+(Sales and Marketing | 68) Tj
+1 0 0 1 54 616 Tm
+(Customer Success and Implementation | 54) Tj
+1 0 0 1 54 602 Tm
+(General and Administrative | 36) Tj
+1 0 0 1 54 588 Tm
+(Security and IT | 16) Tj
+1 0 0 1 54 574 Tm
+1 0 0 1 54 560 Tm
+(Location mix: 46% remote US, 31% Denver, 14% other US offices, 9% international.) Tj
+1 0 0 1 54 546 Tm
+(Trailing twelve-month voluntary attrition is 9.2%.) Tj
+1 0 0 1 54 532 Tm
+(The April engagement score was 81 out of 100.) Tj
+1 0 0 1 54 518 Tm
+(Manager effectiveness scored 84; career growth scored 68, the lowest dimension.) Tj
+/F1 8 Tf
+1 0 0 1 54 36 Tm
+(Fake Demo Company | Page 1 of 2) Tj
+ET
+endstream
+endobj
+5 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 7 0 R >> >> /Contents 6 0 R >>
+endobj
+6 0 obj
+<< /Length 1085 >>
+stream
+BT
+/F1 18 Tf
+1 0 0 1 54 738 Tm
+(2026 hiring plan) Tj
+/F1 8 Tf
+1 0 0 1 54 716 Tm
+(FDC CONFIDENTIAL - SYNTHETIC DEMO DATA) Tj
+/F1 10 Tf
+1 0 0 1 54 686 Tm
+(The board approved 36 net new hires for the remainder of 2026.) Tj
+1 0 0 1 54 672 Tm
+(Planned hires: 14 Engineering, 8 Customer Success and Implementation, 8 EMEA Sales, 4) Tj
+1 0 0 1 54 658 Tm
+(Security, and 2 Finance.) Tj
+1 0 0 1 54 644 Tm
+(Priority roles are VP EMEA, Director of Implementation, Staff Mobile Engineer, and) Tj
+1 0 0 1 54 630 Tm
+(Security Compliance Lead.) Tj
+1 0 0 1 54 616 Tm
+(The VP EMEA role has been open for 74 days and is the largest leadership hiring risk.) Tj
+1 0 0 1 54 602 Tm
+1 0 0 1 54 588 Tm
+(PEOPLE ACTIONS) Tj
+1 0 0 1 54 574 Tm
+(Launch a technical career framework by July 15.) Tj
+1 0 0 1 54 560 Tm
+(Increase implementation onboarding capacity before the September demand peak.) Tj
+1 0 0 1 54 546 Tm
+(Run manager training for all new managers in Q3.) Tj
+1 0 0 1 54 532 Tm
+(Keep regrettable attrition below 6% for the full year.) Tj
+/F1 8 Tf
+1 0 0 1 54 36 Tm
+(Fake Demo Company | Page 2 of 2) Tj
+ET
+endstream
+endobj
+7 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000021 00000 n 
+0000000070 00000 n 
+0000000133 00000 n 
+0000000259 00000 n 
+0000001272 00000 n 
+0000001398 00000 n 
+0000002534 00000 n 
+trailer
+<< /Size 8 /Root 1 0 R >>
+startxref
+2604
+%%EOF

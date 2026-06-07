@@ -21,8 +21,9 @@ For the built-in synthetic FDC demo company:
 
     bun run demo:seed
 
-That command regenerates `data/fdc/*.pdf`, parses them with Unsiloed, and
-synchronizes the page-cited chunks to Moss.
+That command regenerates `data/fdc/*.pdf`, copies the same demo-safe PDFs to
+`public/demo-company/fdc/`, parses the corpus with Unsiloed, and synchronizes
+the page-cited chunks to Moss.
 
 ## What to put here
 
@@ -33,5 +34,6 @@ synchronizes the page-cited chunks to Moss.
   10-Ks. Real numbers impress judges. Avoid scanned-image-only PDFs — Unsiloed needs
   text/tables it can actually parse.
 
-The source PDFs are gitignored (large, possibly real filings). The FDC generator and
-its structured source data are tracked, so the demo corpus is reproducible.
+General source PDFs are gitignored because they may be large or confidential. The
+synthetic FDC copies under `public/demo-company/fdc/` are tracked so judges can open
+the exact demo PDFs; the generator and structured source data remain reproducible.

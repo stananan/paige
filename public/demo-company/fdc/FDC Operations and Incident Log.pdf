@@ -1,0 +1,115 @@
+%PDF-1.4
+% PAIGE FDC
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R 5 0 R] /Count 2 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 7 0 R >> >> /Contents 4 0 R >>
+endobj
+4 0 obj
+<< /Length 1193 >>
+stream
+BT
+/F1 18 Tf
+1 0 0 1 54 738 Tm
+(2026 incident log) Tj
+/F1 8 Tf
+1 0 0 1 54 716 Tm
+(FDC CONFIDENTIAL - SYNTHETIC DEMO DATA) Tj
+/F1 10 Tf
+1 0 0 1 54 686 Tm
+(April 17, 2026 - SEV-2 Inventory sync latency - 47 minutes.) Tj
+1 0 0 1 54 672 Tm
+(Impact: 83 customers saw inventory updates delayed by up to 21 minutes. No data was) Tj
+1 0 0 1 54 658 Tm
+(lost.) Tj
+1 0 0 1 54 644 Tm
+(Root cause: uneven queue partition load after a high-volume customer import.) Tj
+1 0 0 1 54 630 Tm
+(Resolution: rebalanced partitions and added automatic hot-partition detection.) Tj
+1 0 0 1 54 616 Tm
+(Follow-up owner: Priya Raman. Completed May 15.) Tj
+1 0 0 1 54 602 Tm
+1 0 0 1 54 588 Tm
+(February 3, 2026 - SEV-2 Authentication degradation - 19 minutes.) Tj
+1 0 0 1 54 574 Tm
+(Impact: 11% of login attempts failed in the US-West region.) Tj
+1 0 0 1 54 560 Tm
+(Root cause: an expired signing certificate was not replaced after rotation automation) Tj
+1 0 0 1 54 546 Tm
+(failed.) Tj
+1 0 0 1 54 532 Tm
+(Resolution: replaced the certificate and added a 30-day rotation alert.) Tj
+1 0 0 1 54 518 Tm
+(Follow-up owner: Theo Grant. Completed February 10.) Tj
+/F1 8 Tf
+1 0 0 1 54 36 Tm
+(Fake Demo Company | Page 1 of 2) Tj
+ET
+endstream
+endobj
+5 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 7 0 R >> >> /Contents 6 0 R >>
+endobj
+6 0 obj
+<< /Length 1226 >>
+stream
+BT
+/F1 18 Tf
+1 0 0 1 54 738 Tm
+(Prior incident and service levels) Tj
+/F1 8 Tf
+1 0 0 1 54 716 Tm
+(FDC CONFIDENTIAL - SYNTHETIC DEMO DATA) Tj
+/F1 10 Tf
+1 0 0 1 54 686 Tm
+(November 21, 2025 - SEV-3 Analytics data freshness - 2 hours 14 minutes.) Tj
+1 0 0 1 54 672 Tm
+(Impact: 126 customers saw dashboards lag by one reporting cycle.) Tj
+1 0 0 1 54 658 Tm
+(Root cause: a warehouse job retried indefinitely after a schema change.) Tj
+1 0 0 1 54 644 Tm
+(Resolution: restarted the job and moved freshness checks ahead of dashboard publication.) Tj
+1 0 0 1 54 630 Tm
+(Follow-up owner: Mara Chen. Completed December 5.) Tj
+1 0 0 1 54 616 Tm
+1 0 0 1 54 602 Tm
+(The analytics freshness incident affected the most customers: 126.) Tj
+1 0 0 1 54 588 Tm
+(The inventory latency incident was the most severe 2026 customer-facing data incident.) Tj
+1 0 0 1 54 574 Tm
+1 0 0 1 54 560 Tm
+(Q1 2026 SERVICE LEVELS) Tj
+1 0 0 1 54 546 Tm
+(RelayOS availability: 99.96%. LedgerLens availability: 99.98%.) Tj
+1 0 0 1 54 532 Tm
+(Inventory sync p95 latency: 4.8 seconds. API p95 latency: 310 milliseconds.) Tj
+1 0 0 1 54 518 Tm
+(Mean time to recovery for SEV-2 incidents: 33 minutes.) Tj
+/F1 8 Tf
+1 0 0 1 54 36 Tm
+(Fake Demo Company | Page 2 of 2) Tj
+ET
+endstream
+endobj
+7 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000021 00000 n 
+0000000070 00000 n 
+0000000133 00000 n 
+0000000259 00000 n 
+0000001503 00000 n 
+0000001629 00000 n 
+0000002906 00000 n 
+trailer
+<< /Size 8 /Root 1 0 R >>
+startxref
+2976
+%%EOF

@@ -44,8 +44,9 @@ export default function DemoCompanyPage() {
             {fdcCompany.legalName}
           </h1>
           <p className="mt-3 max-w-3xl text-balance leading-7 text-[#17231d]/65">
-            {fdcCompany.description} These files are parsed by Unsiloed and indexed in Moss — open any
-            one to read what Paige retrieves and cites live in the meeting.
+            {fdcCompany.description} Every file below is a real generated PDF from the
+            <code className="mx-1 rounded bg-[#17231d]/5 px-1.5 py-0.5 text-sm">data/fdc</code>
+            corpus, parsed by Unsiloed and indexed in Moss for Paige to retrieve and cite.
           </p>
           <div className="mt-5 flex flex-wrap gap-x-8 gap-y-3 text-sm">
             {[
@@ -78,7 +79,8 @@ export default function DemoCompanyPage() {
               </h2>
               <p className="mt-3 max-w-md leading-7 text-[#173f33]/70">
                 Open the meeting room, say “Paige,” and ask one of these. She speaks a cited answer,
-                shares her screen with the chart, then drops in a generated visual.
+                then renders an exact chart directly from the retrieved PDF values when the question
+                asks for a comparison.
               </p>
               <Link
                 href="/room"

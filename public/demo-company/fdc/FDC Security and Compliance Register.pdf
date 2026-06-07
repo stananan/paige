@@ -1,0 +1,114 @@
+%PDF-1.4
+% PAIGE FDC
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R 5 0 R] /Count 2 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 7 0 R >> >> /Contents 4 0 R >>
+endobj
+4 0 obj
+<< /Length 1063 >>
+stream
+BT
+/F1 18 Tf
+1 0 0 1 54 738 Tm
+(Security posture) Tj
+/F1 8 Tf
+1 0 0 1 54 716 Tm
+(FDC CONFIDENTIAL - SYNTHETIC DEMO DATA) Tj
+/F1 10 Tf
+1 0 0 1 54 686 Tm
+(SOC 2 Type II was renewed on March 14, 2026 with no material exceptions.) Tj
+1 0 0 1 54 672 Tm
+(ISO 27001 certification is targeted for October 2026.) Tj
+1 0 0 1 54 658 Tm
+(HIPAA controls are available for enterprise customers under a signed BAA.) Tj
+1 0 0 1 54 644 Tm
+(Security awareness training completion is 98%.) Tj
+1 0 0 1 54 630 Tm
+(Phishing simulation failure rate is 2.7%, down from 4.1% in Q4 2025.) Tj
+1 0 0 1 54 616 Tm
+1 0 0 1 54 602 Tm
+(VULNERABILITY STATUS) Tj
+1 0 0 1 54 588 Tm
+(Critical: 0 open.) Tj
+1 0 0 1 54 574 Tm
+(High: 2 open. One is due June 12 and one is due June 21.) Tj
+1 0 0 1 54 560 Tm
+(Medium: 11 open. Low: 27 open.) Tj
+1 0 0 1 54 546 Tm
+(Median remediation time for high-severity findings is 12 days.) Tj
+1 0 0 1 54 532 Tm
+1 0 0 1 54 518 Tm
+(There were no confirmed customer-data breaches in 2025 or Q1 2026.) Tj
+/F1 8 Tf
+1 0 0 1 54 36 Tm
+(Fake Demo Company | Page 1 of 2) Tj
+ET
+endstream
+endobj
+5 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 7 0 R >> >> /Contents 6 0 R >>
+endobj
+6 0 obj
+<< /Length 1111 >>
+stream
+BT
+/F1 18 Tf
+1 0 0 1 54 738 Tm
+(Compliance gaps and third-party risk) Tj
+/F1 8 Tf
+1 0 0 1 54 716 Tm
+(FDC CONFIDENTIAL - SYNTHETIC DEMO DATA) Tj
+/F1 10 Tf
+1 0 0 1 54 686 Tm
+(OPEN ISO 27001 ACTIONS) Tj
+1 0 0 1 54 672 Tm
+(Complete formal asset-owner attestations by June 30.) Tj
+1 0 0 1 54 658 Tm
+(Add evidence automation for quarterly access reviews by July 15.) Tj
+1 0 0 1 54 644 Tm
+(Finish the EU data residency control mapping by August 1.) Tj
+1 0 0 1 54 630 Tm
+1 0 0 1 54 616 Tm
+(THIRD-PARTY RISKS) Tj
+1 0 0 1 54 602 Tm
+(Primary cloud provider concentration is rated medium-high.) Tj
+1 0 0 1 54 588 Tm
+(The SMS delivery provider has not completed its 2026 penetration test.) Tj
+1 0 0 1 54 574 Tm
+(Two AI subprocessors require updated data-retention addenda before July 31.) Tj
+1 0 0 1 54 560 Tm
+1 0 0 1 54 546 Tm
+(The 2026 security budget is $5.8 million, including $1.2 million for compliance and) Tj
+1 0 0 1 54 532 Tm
+(audit work.) Tj
+1 0 0 1 54 518 Tm
+(The largest compliance schedule risk is delayed EU control evidence for ISO 27001.) Tj
+/F1 8 Tf
+1 0 0 1 54 36 Tm
+(Fake Demo Company | Page 2 of 2) Tj
+ET
+endstream
+endobj
+7 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000021 00000 n 
+0000000070 00000 n 
+0000000133 00000 n 
+0000000259 00000 n 
+0000001373 00000 n 
+0000001499 00000 n 
+0000002661 00000 n 
+trailer
+<< /Size 8 /Root 1 0 R >>
+startxref
+2731
+%%EOF

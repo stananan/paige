@@ -403,6 +403,155 @@ function questionRequestsChart(question: string): boolean {
   );
 }
 
+interface ExtractedTableChart {
+  chart: PaigeChart;
+  source: RetrievedDocument;
+}
+
+function tableCells(line: string): string[] {
+  return line
+    .split("|")
+    .map((cell) => cell.trim())
+    .filter((cell, index, cells) => cell || (index > 0 && index < cells.length - 1));
+}
+
+function requestedMetric(question: string): string[] | null {
+  const normalized = question.toLowerCase();
+  const metrics: Array<[RegExp, string[]]> = [
+    [/\boperating income\b/, ["operating income"]],
+    [/\bgross margin\b/, ["gross margin"]],
+    [/\b(?:net revenue retention|nrr)\b/, ["nrr", "net revenue retention"]],
+    [/\b(?:annual recurring revenue|arr)\b/, ["arr", "annual recurring revenue"]],
+    [/\brevenue\b/, ["revenue"]],
+    [/\bcustomers?\b/, ["customers", "customer count"]],
+    [/\bemployees?\b|\bheadcount\b/, ["employees", "headcount"]],
+  ];
+  return metrics.find(([pattern]) => pattern.test(normalized))?.[1] ?? null;
+}
+
+function parseTableValue(value: string): number | null {
+  const negative = /^\s*\(.*\)\s*$/.test(value);
+  const match = value.match(/[-+]?\d[\d,]*(?:\.\d+)?/);
+  if (!match) return null;
+  const parsed = Number(match[0].replaceAll(",", ""));
+  if (!Number.isFinite(parsed)) return null;
+  return negative ? -Math.abs(parsed) : parsed;
+}
+
+function requestedYearLabels(question: string): Set<string> {
+  const years = new Set<string>();
+  const range = question.match(
+    /\b(?:FY)?(20\d{2})\s*(?:through|to|[-–])\s*(?:FY)?(20\d{2})\b/i,
+  );
+  if (range) {
+    const start = Number(range[1]);
+    const end = Number(range[2]);
+    if (end >= start && end - start <= 12) {
+      for (let year = start; year <= end; year++) years.add(String(year));
+      return years;
+    }
+  }
+
+  for (const year of question.match(/\b(?:FY)?20\d{2}\b/gi) ?? []) {
+    years.add(year.toUpperCase().replace(/^FY/, ""));
+  }
+  return years;
+}
+
+function chartUnit(header: string, values: string[], document: RetrievedDocument): string {
+  const joinedValues = values.join(" ");
+  if (/%/.test(joinedValues) || /\b(?:margin|nrr|retention|rate)\b/i.test(header)) return "%";
+  if (
+    /[$€£]/.test(joinedValues) ||
+    /\b(?:usd|currency values).*millions?\b/i.test(document.text) ||
+    /\bmillions?\b/i.test(document.text)
+  ) {
+    return "USD millions";
+  }
+  return header;
+}
+
+/**
+ * Extract a chart directly from a pipe-delimited source table. This is only a
+ * fallback when the model omits or fails validation for a requested chart; the
+ * labels and values come straight from one retrieved PDF page.
+ */
+export function extractGroundedTableChart(
+  question: string,
+  documents: RetrievedDocument[],
+): ExtractedTableChart | null {
+  const metricAliases = requestedMetric(question);
+  if (!metricAliases) return null;
+
+  const requestedQuarters = new Set(
+    question.toUpperCase().match(/\bQ[1-4]\b/g) ?? [],
+  );
+  const requestedYears = requestedYearLabels(question);
+
+  for (const document of documents) {
+    const lines = document.text.split(/\r?\n/);
+    for (let index = 0; index < lines.length; index++) {
+      if (!lines[index].includes("|")) continue;
+      const headers = tableCells(lines[index]);
+      if (headers.length < 2) continue;
+
+      const metricIndex = headers.findIndex((header, headerIndex) => {
+        if (headerIndex === 0) return false;
+        const normalized = header.toLowerCase();
+        return metricAliases.some((alias) => normalized.includes(alias));
+      });
+      if (metricIndex === -1) continue;
+
+      const labels: string[] = [];
+      const values: number[] = [];
+      const rawValues: string[] = [];
+
+      for (let rowIndex = index + 1; rowIndex < lines.length; rowIndex++) {
+        if (!lines[rowIndex].includes("|")) break;
+        const cells = tableCells(lines[rowIndex]);
+        if (cells.length !== headers.length) continue;
+        const label = cells[0];
+        const normalizedLabel = label.toUpperCase();
+        if (/^-+$/.test(label.replaceAll(" ", ""))) continue;
+        if (
+          requestedQuarters.size > 0 &&
+          ![...requestedQuarters].some((quarter) => normalizedLabel.includes(quarter))
+        ) {
+          continue;
+        }
+        if (
+          requestedYears.size > 0 &&
+          ![...requestedYears].some((year) => normalizedLabel.includes(year))
+        ) {
+          continue;
+        }
+
+        const value = parseTableValue(cells[metricIndex]);
+        if (value === null) continue;
+        labels.push(label);
+        values.push(value);
+        rawValues.push(cells[metricIndex]);
+      }
+
+      if (labels.length < 2) continue;
+      const metric = headers[metricIndex];
+      const quarterSuffix =
+        requestedQuarters.size === 1 ? ` — ${[...requestedQuarters][0]} history` : "";
+      return {
+        chart: {
+          title: `${metric}${quarterSuffix}`,
+          labels,
+          values,
+          unit: chartUnit(metric, rawValues, document),
+        },
+        source: document,
+      };
+    }
+  }
+
+  return null;
+}
+
 function parseChart(value: unknown): PaigeChart | null {
   if (value === null || value === undefined) return null;
   if (!isRecord(value)) throw new Error("Model returned an invalid chart");
@@ -720,7 +869,26 @@ export async function generateAnswerFromDocuments(
   } catch {
     throw new Error("TrueFoundry returned malformed answer JSON");
   }
-  return parseModelAnswer(parsed, documents, model);
+  const answer = parseModelAnswer(parsed, documents, model);
+  if (!answer.chart && answer.citations.length > 0 && questionRequestsChart(question)) {
+    const extracted = extractGroundedTableChart(question, documents);
+    if (extracted) {
+      answer.chart = extracted.chart;
+      if (
+        !answer.citations.some(
+          (citation) =>
+            citation.sourceFile === extracted.source.sourceFile &&
+            citation.page === extracted.source.page,
+        )
+      ) {
+        answer.citations.push({
+          sourceFile: extracted.source.sourceFile,
+          page: extracted.source.page,
+        });
+      }
+    }
+  }
+  return answer;
 }
 
 // Free-form answer for anything that isn't a company-document lookup: greetings,

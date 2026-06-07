@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   askPaige,
+  extractGroundedTableChart,
   generateAnswerFromDocuments,
   generateConversationalAnswer,
   parseModelAnswer,
@@ -25,6 +26,19 @@ const mossEnvironment = {
   MOSS_PROJECT_ID: "project-id",
   MOSS_PROJECT_KEY: "project-key",
   MOSS_INDEX: "company-docs",
+};
+
+const q3History: RetrievedDocument = {
+  sourceFile: "quarterly-history.pdf",
+  page: "1",
+  text: [
+    "All currency values are in USD millions unless otherwise stated.",
+    "PERIOD | REVENUE | OPERATING INCOME | GROSS MARGIN",
+    "Q3 2022 | 4.6 | -2.0 | 60%",
+    "Q3 2023 | 7.9 | -1.4 | 65%",
+    "Q3 2024 | 12.4 | -0.3 | 70%",
+    "Q3 2025 | 17.2 | 1.3 | 74%",
+  ].join("\n"),
 };
 
 function asMossDocument(document: RetrievedDocument) {
@@ -324,6 +338,29 @@ describe("parseModelAnswer", () => {
   });
 });
 
+describe("extractGroundedTableChart", () => {
+  test("builds a Q3 revenue chart directly from a cited PDF table", () => {
+    const extracted = extractGroundedTableChart(
+      "Compare Q3 revenue from 2022 through 2025",
+      [q3History],
+    );
+
+    expect(extracted).toEqual({
+      chart: {
+        title: "REVENUE — Q3 history",
+        labels: ["Q3 2022", "Q3 2023", "Q3 2024", "Q3 2025"],
+        values: [4.6, 7.9, 12.4, 17.2],
+        unit: "USD millions",
+      },
+      source: q3History,
+    });
+  });
+
+  test("returns no chart when the question does not name a table metric", () => {
+    expect(extractGroundedTableChart("Compare the last several years", [q3History])).toBeNull();
+  });
+});
+
 describe("generateAnswerFromDocuments", () => {
   test("calls TrueFoundry with grounded context and validates the response", async () => {
     const fetchImpl = async (_input: string | URL | Request, init?: RequestInit) => {
@@ -412,6 +449,41 @@ describe("generateAnswerFromDocuments", () => {
     });
 
     expect(answer.chart?.values).toEqual([120, 150, 210]);
+  });
+
+  test("falls back to a deterministic source-table chart when the model omits one", async () => {
+    const answer = await generateAnswerFromDocuments(
+      "Compare Q3 revenue from 2022 through 2025",
+      [q3History],
+      {
+        fetchImpl: async () =>
+          Response.json({
+            choices: [
+              {
+                message: {
+                  content: JSON.stringify({
+                    answer: "Q3 revenue rose from $4.6 million in 2022 to $17.2 million in 2025.",
+                    citations: [1],
+                    chart: null,
+                  }),
+                },
+              },
+            ],
+          }),
+        environment: {
+          TRUEFOUNDRY_BASE_URL: "https://gateway.truefoundry.ai",
+          TRUEFOUNDRY_API_KEY: "test-key",
+        },
+      },
+    );
+
+    expect(answer.chart).toEqual({
+      title: "REVENUE — Q3 history",
+      labels: ["Q3 2022", "Q3 2023", "Q3 2024", "Q3 2025"],
+      values: [4.6, 7.9, 12.4, 17.2],
+      unit: "USD millions",
+    });
+    expect(answer.citations).toEqual([{ sourceFile: "quarterly-history.pdf", page: "1" }]);
   });
 
   test("forwards caller cancellation to the TrueFoundry request", async () => {

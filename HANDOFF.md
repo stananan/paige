@@ -8,9 +8,8 @@ A **live AI meeting copilot** built for the YC Conversational AI Hackathon (Jun 
 A 3-person LiveKit room (you + a friend + Paige). Paige listens the whole time and only
 *acts* when addressed by name ("Paige, …"). On command she retrieves from a **Moss**
 semantic index over pre-ingested company financial documents, **speaks** a one-line cited
-answer, shows a chart, then a beat later drops a generated image (Qwen vs MiniMax race via
-their direct APIs). The answer LLM runs through TrueFoundry. Demo-first; protect the "cited
-answer arriving live" hero beat.
+answer, and shows a deterministic chart built from retrieved PDF values. The answer LLM runs
+through TrueFoundry. Demo-first; protect the "cited answer arriving live" hero beat.
 
 Full approved design/plan (outside the repo): `~/.gstack/projects/paige/stanleyho-unknown-design-20260606-154311.md`
 
@@ -19,14 +18,15 @@ Full approved design/plan (outside the repo): `~/.gstack/projects/paige/stanleyh
   GitHub: **github.com/stananan/paige** (branch `main`) · Vercel project `stananans-projects/paige`.
 - `/` landing with room and demo-company entry points.
 - `/demo-company` — a presentation-ready synthetic FDC workspace with financials,
-  accounts, incidents, roadmap, security, support, and six prepared demo questions.
+  accounts, incidents, roadmap, security, support, and seven prepared demo questions.
 - `/room` — LiveKit room: prejoin (name) → video grid (`GridLayout`+`ParticipantTile`) +
   `ControlBar`. Token minted by `/api/token` (livekit-server-sdk).
 - **Paige's voice spine (browser approach):**
   - **Ears (STT):** browser **Web Speech API** (Chrome `webkitSpeechRecognition`) in
     `src/app/room/PaigeListener.tsx`. Continuous; detects wake word "Paige" (accepts
     homophones page/pages/padge/paij); extracts the command after the wake word.
-  - **Voice (TTS):** **MiniMax `speech-02-hd`, voice `Wise_Woman`** via `/api/tts`. Plays MP3 in-browser.
+  - **Voice (TTS):** **MiniMax `speech-2.8-hd`, voice `English_radiant_girl`, speed `1.2`**
+    via `/api/tts`. Plays MP3 in-browser. This configuration was live-verified.
   - **Chat box** in the same panel (type to Paige) — shares the `respond()` path.
   - `respond()` calls `/api/ask`, renders the cited answer/chart, and sends the answer to
     MiniMax TTS.
@@ -35,9 +35,10 @@ Full approved design/plan (outside the repo): `~/.gstack/projects/paige/stanleyh
   parse results by file hash, reconstructs page-specific Markdown, creates bounded Moss
   documents carrying `{sourceFile, page}`, synchronizes the `paige-docs` index, then loads
   it and verifies a real query returns citation metadata.
-- **FDC demo corpus is complete:** `bun run demo:seed` generates nine two-page PDFs from
-  `src/data/fdc.ts`, parses them through Unsiloed, and indexes 18 page-cited Moss documents.
-  All six prompts shown on `/demo-company` returned supported live answers locally.
+- **FDC demo corpus is complete:** `bun run demo:seed` generates ten two-page PDFs from
+  `src/data/fdc.ts`, copies them to the public demo library, parses them through Unsiloed,
+  and indexes 20 page-cited Moss documents. The prepared prompts include a four-year Q3
+  comparison with a grounded chart.
 - **`agent/`** — a Python **LiveKit-Agents** worker (the original "Paige as a real participant"
   design: Deepgram STT + MiniMax TTS). **PARKED.** We switched to browser STT because Deepgram
   signup was blocked. It's import-verified (livekit-agents 1.5.17) but never run live (needs
@@ -54,19 +55,18 @@ Full approved design/plan (outside the repo): `~/.gstack/projects/paige/stanleyh
   the unit (e.g. "USD millions") is matched against the whole cited document, not beside
   every cell, so values pulled from tables/headers pass. Same relaxation applied to the
   spoken-answer number check so a table-only value no longer hard-fails the request.
-- **Task #6 — Qwen vs MiniMax image race: COMPLETE.** `/api/image` runs both providers
-  via `src/lib/image-race.ts`; first valid image wins, the loser is aborted, and the
-  result is returned as a data URL labeled with the winning model. If both fail the client
-  keeps the deterministic chart. Wired into the room as the slow beat.
+- **Task #6 — Qwen vs MiniMax image race: PARKED FOR FACTUAL ANSWERS.** `/api/image` still
+  runs both providers through `src/lib/image-race.ts`, but the room no longer calls it for
+  company-data questions. Image models changed labels and values, so only deterministic,
+  source-grounded SVG charts appear in the live answer path.
 - **General conversation + resilience: COMPLETE.** `askPaige` no longer dead-ends on
   off-corpus questions or a flaky index — it falls back to a spoken conversational answer
   (`generateConversationalAnswer`). Retrieval errors and answer-validation throws degrade to
   conversation instead of a 502.
-- **Paige presence: COMPLETE.** Paige is a participant tile in the room grid and "shares
-  her screen" (a featured `PaigeStage`) when she has a cited answer/chart/image to present.
-- **Demo company drive: COMPLETE.** `/demo-company` is now a Google-Drive-style browser
-  (`DriveExplorer`); clicking a file opens a preview that renders the document pages, so the
-  data Paige cites is visible.
+- **Paige presence: COMPLETE.** Paige stays the same size as every webcam tile. Cited
+  answers and charts render inside her tile; the text dock can be closed and reopened.
+- **Demo company PDF library: COMPLETE.** `/demo-company` lists the actual generated PDFs
+  (`DriveExplorer`); each opens in the browser and is labeled Unsiloed-parsed/Moss-indexed.
 - Remaining: live upload (#7), two real Chrome mic + two-person LiveKit rehearsals (#8),
   final demo script + fallback recording + submission (#9). See `README.md`.
 
@@ -74,10 +74,10 @@ Full approved design/plan (outside the repo): `~/.gstack/projects/paige/stanleyh
 ```
 src/app/page.tsx            landing
 src/app/demo-company/page.tsx FDC company drive (server) — header + DriveExplorer + prompts
-src/app/demo-company/DriveExplorer.tsx  Google-Drive-style file browser + page preview (client)
+src/app/demo-company/DriveExplorer.tsx  searchable list of actual generated PDFs (client)
 src/app/room/page.tsx       room (server wrapper)
-src/app/room/RoomClient.tsx prejoin + LiveKitRoom + custom grid (Paige as a tile) + screen-share stage (client)
-src/app/room/PaigeListener.tsx  Paige's brain (usePaige hook) + PaigeTile/PaigeStage/PaigeDock/AnswerChart
+src/app/room/RoomClient.tsx prejoin + LiveKitRoom + equal-size custom grid (client)
+src/app/room/PaigeListener.tsx  Paige's brain (usePaige hook) + PaigeTile/PaigeDock/AnswerChart
 src/app/api/token/route.ts  LiveKit JWT minting (server)
 src/app/api/tts/route.ts    MiniMax TTS -> MP3 (server)
 src/app/api/ask/route.ts    Moss retrieval -> TrueFoundry answer + citations/chart
@@ -102,15 +102,15 @@ agent/                      parked Python LiveKit-Agents worker (Deepgram path)
 
 ## Stack & sponsors
 Next.js 16 / React 19 / Tailwind v4 on Vercel. **LiveKit** (room + transport) · **Moss**
-(semantic retrieval — the foundation) · **Unsiloed** (PDF parsing) · **MiniMax** (TTS now,
-image later) · **Qwen via DashScope** (image) · **TrueFoundry** (answer LLM gateway +
+(semantic retrieval — the foundation) · **Unsiloed** (PDF parsing) · **MiniMax** (TTS) ·
+**Qwen via DashScope** (optional image experiment) · **TrueFoundry** (answer LLM gateway +
 fallback) · browser **Web Speech API** (STT).
 
 ## Env / keys
 In `.env` (gitignored). `.env.example` documents all. Deployed ones are also on Vercel
 (`vercel env add NAME production` then redeploy).
 - `LIVEKIT_URL` / `NEXT_PUBLIC_LIVEKIT_URL` / `LIVEKIT_API_KEY` / `LIVEKIT_API_SECRET` — set, on Vercel.
-- `MINIMAX_API_KEY` — set, on Vercel (TTS + image race; no GroupId needed).
+- `MINIMAX_API_KEY` — set, on Vercel (Speech 2.8 HD TTS + optional image endpoint; no GroupId needed).
 - `MOSS_PROJECT_ID` / `MOSS_PROJECT_KEY` — set locally and on Vercel. Ingest + retrieval.
 - `UNSILOED_API_KEY` — set (local). PDF parsing.
 - `DASHSCOPE_API_KEY` / `QWEN_API_KEY` — Qwen image generation is live-verified through
@@ -143,9 +143,9 @@ In `.env` (gitignored). `.env.example` documents all. Deployed ones are also on 
    to an http(s) page to disconnect (the browse tool blocks `about:blank`).
 5. **Paige is browser-side** now (not a LiveKit participant). `agent/` is the parked alternative.
 6. React StrictMode (dev) double-mounts; `recognition.start()` is guarded with try/catch.
-7. **Generated graphs are not factual charts.** A live Qwen smoke test preserved the revenue
-   values but omitted year labels. Render cited charts deterministically in React/SVG; use
-   Qwen/MiniMax only for the separately labeled slow visual.
+7. **Generated graphs are not factual charts.** Qwen and MiniMax changed or omitted labels
+   and values. The room does not call `/api/image` for factual answers. Render cited charts
+   deterministically in React/SVG from retrieved PDF table values.
 8. **Google Drive should be an import source, not the live answer path.** Keep Moss as the
    query-time knowledge base. A future "Connect Drive" flow should use OAuth, let a user
    select a folder, parse supported files, and sync page-cited content into Moss.
@@ -157,12 +157,12 @@ In `.env` (gitignored). `.env.example` documents all. Deployed ones are also on 
    ("All currency values are in USD millions"), so the validator checks the unit appears
    somewhere in the cited docs while still requiring the exact value next to its label.
    Wrong scale (millions→billions) still fails because the scale word isn't present.
-11. **Paige is not a real LiveKit participant.** Her tile + "screen share" are client-side
-   composition (`PaigeTile`/`PaigeStage` in the custom grid), not a published track. The
-   real-participant path is still parked in `agent/`.
+11. **Paige is not a real LiveKit participant.** Her equal-sized `PaigeTile` is client-side
+   composition in the custom grid, not a published track. The real-participant path is still
+   parked in `agent/`.
 
 ## Demo target
 Two people in `/room` on webcams. Open `/demo-company` for the prepared FDC prompts, then
-someone says "Paige, how did FDC revenue change from 2024 to 2025?"
-Within ~2s Paige speaks a one-line answer and a cited card/chart appears. A beat later a
-generated image appears labeled "generated by Qwen/MiniMax". The loop runs twice without reset.
+someone says "Paige, compare FDC's Q3 revenue from 2022 through 2025."
+Paige speaks a one-line answer and renders a four-bar chart with the exact PDF values and a
+file/page citation. The loop runs twice without reset.

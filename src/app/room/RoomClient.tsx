@@ -11,7 +11,7 @@ import "@livekit/components-styles";
 import { Track } from "livekit-client";
 import { useState } from "react";
 import { PAIGE_ROOM } from "@/lib/room";
-import { PaigeDock, PaigeStage, PaigeTile, usePaige, type PaigeState } from "./PaigeListener";
+import { PaigeDock, PaigeTile, usePaige, type PaigeState } from "./PaigeListener";
 
 type ConnInfo = { token: string; serverUrl: string };
 
@@ -89,17 +89,30 @@ export default function RoomClient() {
   );
 }
 
-// Hosts the single Paige brain so the grid tile, the shared-screen stage, and the
-// control dock all share one state.
+// Hosts the single Paige brain so the equal-sized grid tile and control dock share
+// one state.
 function PaigeRoom() {
   const paige = usePaige();
+  const [dockOpen, setDockOpen] = useState(true);
+
   return (
     <div className="relative flex h-full flex-col">
       <div className="min-h-0 flex-1">
         <Conference paige={paige} />
       </div>
       <ControlBar />
-      <PaigeDock paige={paige} />
+      {dockOpen ? (
+        <PaigeDock paige={paige} onClose={() => setDockOpen(false)} />
+      ) : (
+        <button
+          type="button"
+          onClick={() => setDockOpen(true)}
+          className="absolute bottom-20 right-4 z-20 rounded-full border border-white/15 bg-black/75 px-3 py-2 text-xs font-medium text-white shadow-xl backdrop-blur hover:bg-black/90"
+          aria-label="Open Paige text window"
+        >
+          Open Paige chat
+        </button>
+      )}
     </div>
   );
 }
@@ -129,46 +142,17 @@ function Conference({ paige }: { paige: PaigeState }) {
     return (
       <div
         key={`${track.participant.identity}:${String(track.source)}:${sid}:${index}`}
-        className="min-h-0 overflow-hidden rounded-lg"
+        className="min-h-0 min-w-0 overflow-hidden rounded-lg [&_.lk-participant-tile]:h-full [&_.lk-participant-tile]:w-full"
       >
         <ParticipantTile trackRef={track} />
       </div>
     );
   });
 
-  // When Paige is presenting, she "shares her screen": the stage takes over and the
-  // humans (plus a compact Paige) drop into a filmstrip below.
-  if (paige.presenting) {
-    return (
-      <div className="flex h-full flex-col gap-2 p-2">
-        <div className="min-h-0 flex-1">
-          <PaigeStage paige={paige} />
-        </div>
-        <div className="flex h-24 shrink-0 gap-2 overflow-x-auto sm:h-28">
-          {tracks.map((track, index) => {
-            const sid =
-              "publication" in track && track.publication ? track.publication.trackSid : "ph";
-            return (
-              <div
-                key={`${track.participant.identity}:${String(track.source)}:${sid}:${index}`}
-                className="aspect-video h-full shrink-0 overflow-hidden rounded-lg"
-              >
-                <ParticipantTile trackRef={track} />
-              </div>
-            );
-          })}
-          <div className="aspect-video h-full shrink-0">
-            <PaigeTile paige={paige} compact />
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className={`grid h-full auto-rows-fr gap-2 p-2 ${gridColsClass(tracks.length + 1)}`}>
       {humanTiles}
-      <div className="min-h-0 overflow-hidden rounded-lg">
+      <div className="min-h-0 min-w-0 overflow-hidden rounded-lg">
         <PaigeTile paige={paige} />
       </div>
     </div>
