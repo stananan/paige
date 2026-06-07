@@ -418,20 +418,14 @@ body {
 
 .paige-avatar__presence {
   position: absolute;
-  left: 50%;
-  bottom: 0;
+  right: 18%;
+  bottom: 6%;
   display: flex;
   align-items: center;
-  gap: 0.4rem;
-  transform: translateX(-50%);
   border: 1px solid rgba(37, 99, 235, 0.14);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.8);
-  padding: 0.3rem 0.65rem;
-  color: #375071;
-  font-size: 0.65rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  padding: 0.24rem;
   box-shadow: 0 6px 20px rgba(37, 99, 235, 0.08);
   backdrop-filter: blur(8px);
 }

@@ -74,15 +74,8 @@ export function PaigeAvatar({
       </div>
 
       {!compact && (
-        <div className="paige-avatar__presence">
+        <div className="paige-avatar__presence" aria-hidden="true">
           <span />
-          {speaking
-            ? "Speaking"
-            : thinking
-              ? "Thinking"
-              : recording
-                ? "Listening"
-                : "Ready"}
         </div>
       )}
     </div>
