@@ -4,3 +4,7 @@
 data/
 .claude/
 agent/
+
+# Vercel's builder currently rejects this npm-11 lockfile with "Invalid Version".
+# Resolve from package.json; Moss's Linux binding is declared there explicitly.
+package-lock.json
