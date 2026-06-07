@@ -17,7 +17,9 @@ Full approved design/plan (outside the repo): `~/.gstack/projects/paige/stanleyh
 ## Status — what's built and working
 - **Next.js 16** (App Router, TS, Tailwind v4). Live: **https://paige-beta.vercel.app** ·
   GitHub: **github.com/stananan/paige** (branch `main`) · Vercel project `stananans-projects/paige`.
-- `/` landing.
+- `/` landing with room and demo-company entry points.
+- `/demo-company` — a presentation-ready synthetic FDC workspace with financials,
+  accounts, incidents, roadmap, security, support, and six prepared demo questions.
 - `/room` — LiveKit room: prejoin (name) → video grid (`GridLayout`+`ParticipantTile`) +
   `ControlBar`. Token minted by `/api/token` (livekit-server-sdk).
 - **Paige's voice spine (browser approach):**
@@ -26,12 +28,16 @@ Full approved design/plan (outside the repo): `~/.gstack/projects/paige/stanleyh
     homophones page/pages/padge/paij); extracts the command after the wake word.
   - **Voice (TTS):** **MiniMax `speech-02-hd`, voice `Wise_Woman`** via `/api/tts`. Plays MP3 in-browser.
   - **Chat box** in the same panel (type to Paige) — shares the `respond()` path.
-  - ⚠️ **Current `respond()` is a PLACEHOLDER echo** (`"You asked: <command>"`). This proves
-    the spine (task #2). It is NOT the final behavior — replace it in task #4.
-- **Ingestion pipeline is complete:** `bun run ingest` reads `/data/*.pdf`, caches Unsiloed
+  - `respond()` calls `/api/ask`, renders the cited answer/chart, and sends the answer to
+    MiniMax TTS.
+- **Ingestion pipeline is complete:** `bun run ingest` recursively reads one selected
+  `/data/<company>/**/*.pdf` corpus, caches Unsiloed
   parse results by file hash, reconstructs page-specific Markdown, creates bounded Moss
   documents carrying `{sourceFile, page}`, synchronizes the `paige-docs` index, then loads
   it and verifies a real query returns citation metadata.
+- **FDC demo corpus is complete:** `bun run demo:seed` generates nine two-page PDFs from
+  `src/data/fdc.ts`, parses them through Unsiloed, and indexes 18 page-cited Moss documents.
+  All six prompts shown on `/demo-company` returned supported live answers locally.
 - **`agent/`** — a Python **LiveKit-Agents** worker (the original "Paige as a real participant"
   design: Deepgram STT + MiniMax TTS). **PARKED.** We switched to browser STT because Deepgram
   signup was blocked. It's import-verified (livekit-agents 1.5.17) but never run live (needs
@@ -39,8 +45,8 @@ Full approved design/plan (outside the repo): `~/.gstack/projects/paige/stanleyh
 
 ## The real next steps
 - **Task #3 — ingest: COMPLETE.** Live verification succeeded against Unsiloed and Moss.
-- **Task #4 — the fast beat (hero): COMPLETE.** `/api/ask` performs Moss cloud
-  retrieval (with a ranked `getDocs` fallback) → **GPT-5.4 Mini via TrueFoundry** → a
+- **Task #4 — the fast beat (hero): COMPLETE.** `/api/ask` performs hybrid Moss cloud
+  retrieval plus a ranked `getDocs` pass → **GPT-5.4 Mini via TrueFoundry** → a
   validated concise answer, citations, and source-grounded chart data. `PaigeListener`
   renders the result and speaks it through `/api/tts`. Production browser verification
   succeeded on `paige-beta.vercel.app`.
@@ -50,6 +56,7 @@ Full approved design/plan (outside the repo): `~/.gstack/projects/paige/stanleyh
 ## File map
 ```
 src/app/page.tsx            landing
+src/app/demo-company/page.tsx FDC synthetic company workspace
 src/app/room/page.tsx       room (server wrapper)
 src/app/room/RoomClient.tsx prejoin + LiveKitRoom + video grid (client)
 src/app/room/PaigeListener.tsx  Paige's brain (client): Web Speech STT + wake word + chat + TTS playback
@@ -57,12 +64,15 @@ src/app/api/token/route.ts  LiveKit JWT minting (server)
 src/app/api/tts/route.ts    MiniMax TTS -> MP3 (server)
 src/app/api/ask/route.ts    Moss retrieval -> TrueFoundry answer + citations/chart
 src/lib/paige-answer.ts     grounded answer orchestration + output validation
+src/data/fdc.ts             shared FDC dashboard and corpus facts
 src/lib/room.ts             hardcoded room name "paige-room"
 src/lib/speech.ts           Web Speech API types + factory
 src/lib/env.ts              typed env accessors
 scripts/ingest.ts           offline Unsiloed → page chunks → Moss sync + query verification
 scripts/ingest-lib.ts       pure page/chunk/citation transforms
 scripts/ingest.test.ts      focused ingestion unit tests
+scripts/generate-fdc-pdfs.ts reproducible data/fdc PDF generator
+scripts/pdf.ts              minimal text-PDF writer used by the demo generator
 scripts/test-qwen-image.ts  live z-image-turbo smoke test
 src/lib/qwen-image.ts       validated server-only DashScope image client
 data/                       corpus PDFs (gitignored), pre-ingested before demo
@@ -96,7 +106,8 @@ In `.env` (gitignored). `.env.example` documents all. Deployed ones are also on 
 - Dev: `npm run dev` → http://localhost:3000. Open `/room` **in Chrome**, allow mic, say
   "Paige, …" or use the chat box.
 - `npm run typecheck` · `npm run build`
-- Ingest (task #3): `bun run ingest`
+- Ingest one company: `bun run ingest --company=<folder>` (auto-detects when only one exists)
+- Regenerate + ingest FDC: `bun run demo:seed`
 - Deploy: `vercel --prod --yes`
 - Parked agent: `cd agent && uv sync && uv run agent.py dev` (needs `DEEPGRAM_API_KEY`)
 
@@ -114,8 +125,12 @@ In `.env` (gitignored). `.env.example` documents all. Deployed ones are also on 
 7. **Generated graphs are not factual charts.** A live Qwen smoke test preserved the revenue
    values but omitted year labels. Render cited charts deterministically in React/SVG; use
    Qwen/MiniMax only for the separately labeled slow visual.
+8. **Google Drive should be an import source, not the live answer path.** Keep Moss as the
+   query-time knowledge base. A future "Connect Drive" flow should use OAuth, let a user
+   select a folder, parse supported files, and sync page-cited content into Moss.
 
 ## Demo target
-Two people in `/room` on webcams. Someone says "Paige, compare our revenue the last 10 years."
+Two people in `/room` on webcams. Open `/demo-company` for the prepared FDC prompts, then
+someone says "Paige, how did FDC revenue change from 2024 to 2025?"
 Within ~2s Paige speaks a one-line answer and a cited card/chart appears. A beat later a
 generated image appears labeled "generated by Qwen/MiniMax". The loop runs twice without reset.

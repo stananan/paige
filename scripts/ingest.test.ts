@@ -1,12 +1,59 @@
 import { describe, expect, test } from "bun:test";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
+  findPdfFiles,
   parseUnsiloedResult,
   sameDocument,
+  selectCorpusPdfs,
   splitText,
   toMossDocuments,
   verificationQuery,
   type UnsiloedParseResult,
 } from "./ingest-lib";
+
+describe("findPdfFiles", () => {
+  test("discovers PDFs in company folders and ignores hidden caches", () => {
+    const root = mkdtempSync(join(tmpdir(), "paige-ingest-"));
+    try {
+      mkdirSync(join(root, "fdc", "finance"), { recursive: true });
+      mkdirSync(join(root, ".ingest-cache"), { recursive: true });
+      writeFileSync(join(root, "overview.PDF"), "pdf");
+      writeFileSync(join(root, "fdc", "finance", "earnings.pdf"), "pdf");
+      writeFileSync(join(root, "fdc", "notes.txt"), "text");
+      writeFileSync(join(root, ".ingest-cache", "cached.pdf"), "pdf");
+
+      expect(findPdfFiles(root)).toEqual(["fdc/finance/earnings.pdf", "overview.PDF"]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("selectCorpusPdfs", () => {
+  const files = [
+    "acme/annual-report.pdf",
+    "acme/incident-log.pdf",
+    "fdc/overview.pdf",
+  ];
+
+  test("selects one explicit company folder", () => {
+    expect(selectCorpusPdfs(files, "acme")).toEqual([
+      "acme/annual-report.pdf",
+      "acme/incident-log.pdf",
+    ]);
+  });
+
+  test("rejects ambiguous multi-company ingestion", () => {
+    expect(() => selectCorpusPdfs(files)).toThrow("Multiple company corpora found");
+  });
+
+  test("rejects path traversal and nested company selectors", () => {
+    expect(() => selectCorpusPdfs(files, "../fdc")).toThrow("single data-folder");
+    expect(() => selectCorpusPdfs(files, "team/fdc")).toThrow("single data-folder");
+  });
+});
 
 describe("splitText", () => {
   test("returns short content unchanged", () => {

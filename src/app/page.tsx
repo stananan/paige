@@ -19,12 +19,20 @@ export default function Home() {
           generated visual a beat later.
         </p>
 
-        <Link
-          href="/room"
-          className="rounded-full bg-foreground px-7 py-3 text-base font-medium text-background transition-opacity hover:opacity-90"
-        >
-          Enter the room →
-        </Link>
+        <div className="flex flex-col items-center gap-3 sm:flex-row">
+          <Link
+            href="/room"
+            className="rounded-full bg-foreground px-7 py-3 text-base font-medium text-background transition-opacity hover:opacity-90"
+          >
+            Enter the room →
+          </Link>
+          <Link
+            href="/demo-company"
+            className="rounded-full border border-foreground/20 px-7 py-3 text-base font-medium transition-colors hover:bg-foreground/5"
+          >
+            View demo company
+          </Link>
+        </div>
 
         <p className="font-mono text-xs text-foreground/40">
           Moss · LiveKit · Unsiloed · MiniMax · Qwen · TrueFoundry

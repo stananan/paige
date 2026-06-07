@@ -1,4 +1,6 @@
 import { createHash } from "node:crypto";
+import { existsSync, readdirSync } from "node:fs";
+import { join, relative, sep } from "node:path";
 import type { DocumentInfo } from "@moss-dev/moss";
 
 export interface UnsiloedSegment {
@@ -33,6 +35,50 @@ export interface ChunkOptions {
 
 const DEFAULT_MAX_CHARS = 2_800;
 const DEFAULT_OVERLAP_CHARS = 280;
+
+export function findPdfFiles(rootDir: string): string[] {
+  if (!existsSync(rootDir)) return [];
+
+  const files: string[] = [];
+  function visit(directory: string): void {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      if (entry.name.startsWith(".")) continue;
+      const fullPath = join(directory, entry.name);
+      if (entry.isDirectory()) {
+        visit(fullPath);
+      } else if (entry.isFile() && entry.name.toLowerCase().endsWith(".pdf")) {
+        files.push(relative(rootDir, fullPath).split(sep).join("/"));
+      }
+    }
+  }
+
+  visit(rootDir);
+  return files.sort((left, right) => left.localeCompare(right));
+}
+
+export function selectCorpusPdfs(files: string[], company?: string): string[] {
+  const requestedCompany = company?.trim();
+  if (requestedCompany) {
+    if (
+      requestedCompany === "." ||
+      requestedCompany === ".." ||
+      !/^[a-z0-9._-]+$/i.test(requestedCompany)
+    ) {
+      throw new Error("company must be a single data-folder name");
+    }
+    return files.filter((file) => file.startsWith(`${requestedCompany}/`));
+  }
+
+  const namespaces = new Set(
+    files.map((file) => (file.includes("/") ? file.split("/", 1)[0] : "(root)")),
+  );
+  if (namespaces.size > 1) {
+    throw new Error(
+      `Multiple company corpora found (${[...namespaces].join(", ")}). Re-run with --company=<folder>.`,
+    );
+  }
+  return files;
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);

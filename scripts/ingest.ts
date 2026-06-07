@@ -1,11 +1,13 @@
 import { createHash } from "node:crypto";
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { MossClient, type DocumentInfo } from "@moss-dev/moss";
 import {
+  findPdfFiles,
   parseUnsiloedResult,
   sameDocument,
+  selectCorpusPdfs,
   toMossDocuments,
   type UnsiloedParseResult,
   verificationQuery,
@@ -18,13 +20,6 @@ const UNSILOED_BASE_URL = "https://prod.visionapi.unsiloed.ai";
 const DEFAULT_INDEX = "paige-docs";
 const POLL_INTERVAL_MS = 3_000;
 const MAX_POLL_ATTEMPTS = 100;
-
-function findPdfs(): string[] {
-  if (!existsSync(DATA_DIR)) return [];
-  return readdirSync(DATA_DIR)
-    .filter((file) => file.toLowerCase().endsWith(".pdf"))
-    .sort((a, b) => a.localeCompare(b));
-}
 
 function requireEnv(name: string): string {
   const value = process.env[name]?.trim();
@@ -61,7 +56,7 @@ async function parsePdf(
   }
 
   const form = new FormData();
-  form.append("file", new Blob([bytes], { type: "application/pdf" }), fileName);
+  form.append("file", new Blob([bytes], { type: "application/pdf" }), basename(fileName));
 
   const submit = await fetch(`${UNSILOED_BASE_URL}/parse`, {
     method: "POST",
@@ -197,12 +192,14 @@ async function verifyIndex(
 }
 
 async function main(): Promise<void> {
-  const pdfs = findPdfs();
+  const company = argument("company");
+  const pdfs = selectCorpusPdfs(findPdfFiles(DATA_DIR), company);
   const indexName = argument("index") || process.env.MOSS_INDEX?.trim() || DEFAULT_INDEX;
   const useCache = !process.argv.includes("--no-cache");
   const dryRun = process.argv.includes("--dry-run");
 
   console.log(`[ingest] data dir: ${DATA_DIR}`);
+  console.log(`[ingest] company: ${company?.trim() || "auto-detected"}`);
   console.log(`[ingest] found ${pdfs.length} PDF(s)`);
   for (const file of pdfs) console.log(`  - ${file}`);
 

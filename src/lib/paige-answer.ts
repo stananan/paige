@@ -6,6 +6,7 @@ const MOSS_MANAGE_URL = "https://service.usemoss.dev/manage";
 const MAX_CONTEXT_CHARS = 12_000;
 const RETRIEVAL_TIMEOUT_MS = 12_000;
 const MOSS_QUERY_TIMEOUT_MS = 3_000;
+const MOSS_MANAGE_TIMEOUT_MS = 4_000;
 const MODEL_TIMEOUT_MS = 15_000;
 
 export interface PaigeCitation {
@@ -119,16 +120,24 @@ function toRetrievedDocument(value: unknown): RetrievedDocument | null {
   };
 }
 
-function rankDocuments(question: string, documents: RetrievedDocument[]): RetrievedDocument[] {
+function searchTerms(question: string): string[] {
   const ignored = new Set([
     "about",
     "across",
     "after",
+    "are",
+    "did",
+    "does",
     "before",
     "compare",
     "company",
     "document",
+    "fdc",
+    "for",
     "from",
+    "how",
+    "its",
+    "largest",
     "reported",
     "show",
     "that",
@@ -137,32 +146,73 @@ function rankDocuments(question: string, documents: RetrievedDocument[]): Retrie
     "this",
     "what",
     "when",
+    "was",
+    "were",
+    "will",
     "where",
     "which",
     "with",
     "years",
   ]);
-  const terms = [
+  return [
     ...new Set(
       question
         .toLowerCase()
         .match(/[a-z0-9]+/g)
-        ?.filter((term) => term.length >= 3 && !ignored.has(term)) ?? [],
+        ?.filter(
+          (term) =>
+            (term.length >= 3 || /\d/.test(term)) && !ignored.has(term),
+        ) ?? [],
     ),
   ];
+}
+
+function documentTermScore(terms: string[], document: RetrievedDocument): number {
+  const haystack = `${document.sourceFile}\n${document.text}`.toLowerCase();
+  return terms.reduce(
+    (total, term) => total + (haystack.includes(term) ? 1 : 0),
+    0,
+  );
+}
+
+function rankDocuments(
+  question: string,
+  documents: RetrievedDocument[],
+  positiveOnly = false,
+): RetrievedDocument[] {
+  const terms = searchTerms(question);
 
   return documents
     .map((document, index) => {
-      const haystack = `${document.sourceFile}\n${document.text}`.toLowerCase();
-      const score = terms.reduce(
-        (total, term) => total + (haystack.includes(term) ? 1 : 0),
-        0,
-      );
-      return { document, index, score };
+      return { document, index, score: documentTermScore(terms, document) };
     })
+    .filter(({ score }) => !positiveOnly || score > 0)
     .sort((left, right) => right.score - left.score || left.index - right.index)
     .slice(0, 5)
     .map(({ document }) => document);
+}
+
+function hasStrongLexicalMatch(
+  question: string,
+  documents: RetrievedDocument[],
+): boolean {
+  const terms = searchTerms(question);
+  if (terms.length === 0) return true;
+  const requiredScore = Math.min(3, terms.length);
+  return documents.some(
+    (document) => documentTermScore(terms, document) >= requiredScore,
+  );
+}
+
+function uniqueDocuments(documents: RetrievedDocument[]): RetrievedDocument[] {
+  return [
+    ...new Map(
+      documents.map((document) => [
+        `${document.sourceFile}\0${document.page}\0${document.text}`,
+        document,
+      ]),
+    ).values(),
+  ];
 }
 
 async function queryMossCloud(
@@ -217,8 +267,8 @@ async function getAllMossDocuments(
   const projectKey = requireValue(environment, "MOSS_PROJECT_KEY");
   const indexName = environment.MOSS_INDEX?.trim() || DEFAULT_INDEX;
   const requestSignal = signal
-    ? AbortSignal.any([signal, AbortSignal.timeout(RETRIEVAL_TIMEOUT_MS)])
-    : AbortSignal.timeout(RETRIEVAL_TIMEOUT_MS);
+    ? AbortSignal.any([signal, AbortSignal.timeout(MOSS_MANAGE_TIMEOUT_MS)])
+    : AbortSignal.timeout(MOSS_MANAGE_TIMEOUT_MS);
   const response = await fetchImpl(MOSS_MANAGE_URL, {
     method: "POST",
     headers: {
@@ -244,17 +294,59 @@ export async function retrieveMossDocuments(
   const environment = dependencies.environment ?? process.env;
   const fetchImpl = dependencies.fetchImpl ?? fetch;
 
+  let semanticDocuments: RetrievedDocument[] = [];
+  let semanticError: unknown;
   try {
-    return await queryMossCloud(question, environment, fetchImpl, dependencies.signal);
-  } catch (error) {
-    if (dependencies.signal?.aborted) throw error;
-    const documents = await getAllMossDocuments(
+    semanticDocuments = await queryMossCloud(
+      question,
       environment,
       fetchImpl,
       dependencies.signal,
     );
-    return rankDocuments(question, documents);
+  } catch (error) {
+    if (dependencies.signal?.aborted) throw error;
+    semanticError = error;
   }
+
+  const rankedSemanticDocuments = rankDocuments(
+    question,
+    semanticDocuments,
+    true,
+  );
+  if (
+    semanticDocuments.length > 0 &&
+    hasStrongLexicalMatch(question, semanticDocuments)
+  ) {
+    return uniqueDocuments([
+      ...rankedSemanticDocuments,
+      ...semanticDocuments,
+    ]).slice(0, 5);
+  }
+
+  let lexicalDocuments: RetrievedDocument[] = [];
+  let lexicalError: unknown;
+  try {
+    lexicalDocuments = rankDocuments(
+      question,
+      await getAllMossDocuments(environment, fetchImpl, dependencies.signal),
+      true,
+    );
+  } catch (error) {
+    if (dependencies.signal?.aborted) throw error;
+    lexicalError = error;
+  }
+
+  if (semanticDocuments.length === 0 && lexicalDocuments.length === 0) {
+    if (semanticError) throw semanticError;
+    if (lexicalError) throw lexicalError;
+    return [];
+  }
+
+  return uniqueDocuments([
+    ...lexicalDocuments.slice(0, 2),
+    ...semanticDocuments,
+    ...lexicalDocuments.slice(2),
+  ]).slice(0, 5);
 }
 
 function buildPrompt(question: string, documents: RetrievedDocument[]): string {
@@ -275,6 +367,8 @@ function buildPrompt(question: string, documents: RetrievedDocument[]): string {
     "Return one concise spoken answer, ideally under 35 words.",
     "Citations must be an array of the source numbers that directly support the answer.",
     "If the sources do not answer the question, say so and return no citations or chart.",
+    "Every number in the spoken answer must appear exactly in a cited source.",
+    "Do not calculate, round, convert, or infer any number, percentage, or numeric change.",
     "Include a chart only when the sources contain a useful numeric comparison.",
     "For charts, copy labels, values, and units exactly from the sources; keep each label paired with its nearby value.",
     "Never calculate, convert, or invent chart values or units.",
@@ -409,15 +503,19 @@ function chartIsGrounded(chart: PaigeChart, documents: RetrievedDocument[]): boo
   });
 }
 
-function answerIsGrounded(answer: string, documents: RetrievedDocument[]): boolean {
+function ungroundedAnswerMentions(
+  answer: string,
+  documents: RetrievedDocument[],
+): NumberMention[] {
   const sourceMentions = documents.flatMap((document) => extractNumberMentions(document.text));
 
-  return extractNumberMentions(answer).every((answerMention) =>
-    sourceMentions.some(
-      (sourceMention) =>
-        numbersEqual(answerMention.value, sourceMention.value) &&
-        qualifiersMatch(answerMention.qualifiers, sourceMention.qualifiers),
-    ),
+  return extractNumberMentions(answer).filter(
+    (answerMention) =>
+      !sourceMentions.some(
+        (sourceMention) =>
+          numbersEqual(answerMention.value, sourceMention.value) &&
+          qualifiersMatch(answerMention.qualifiers, sourceMention.qualifiers),
+      ),
   );
 }
 
@@ -451,8 +549,15 @@ export function parseModelAnswer(
       model,
     };
   }
-  if (!answerIsGrounded(answer, citedDocuments)) {
-    throw new Error("Model answer contains numbers absent from cited sources");
+  const ungroundedMentions = ungroundedAnswerMentions(answer, citedDocuments);
+  if (ungroundedMentions.length > 0) {
+    const unsupported = ungroundedMentions
+      .map(
+        ({ value, qualifiers }) =>
+          `${value}${qualifiers.size ? ` (${[...qualifiers].join(", ")})` : ""}`,
+      )
+      .join(", ");
+    throw new Error(`Model answer contains numbers absent from cited sources: ${unsupported}`);
   }
 
   let chart = parseChart(value.chart);

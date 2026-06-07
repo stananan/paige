@@ -39,7 +39,7 @@ function asMossDocument(document: RetrievedDocument) {
 describe("retrieveMossDocuments", () => {
   test("uses Moss semantic cloud query results when available", async () => {
     const requests: string[] = [];
-    const results = await retrieveMossDocuments("revenue growth", {
+    const results = await retrieveMossDocuments("2025 revenue", {
       environment: mossEnvironment,
       fetchImpl: async (input, init) => {
         const url = String(input);
@@ -53,13 +53,71 @@ describe("retrieveMossDocuments", () => {
         });
         return Response.json({
           docs: [asMossDocument(documents[1])],
-          query: "revenue growth",
+          query: "2025 revenue",
         });
       },
     });
 
     expect(requests).toHaveLength(2);
     expect(results).toEqual([documents[1]]);
+  });
+
+  test("adds lexically relevant pages when semantic results select an adjacent page", async () => {
+    const adjacent: RetrievedDocument = {
+      sourceFile: "sales-pipeline.pdf",
+      page: "2",
+      text: "Customer renewal health and adoption notes.",
+    };
+    const exact: RetrievedDocument = {
+      sourceFile: "sales-pipeline.pdf",
+      page: "1",
+      text: "Q2 sales opportunities and weighted pipeline values.",
+    };
+
+    const results = await retrieveMossDocuments("largest Q2 sales opportunities", {
+      environment: mossEnvironment,
+      fetchImpl: async (input) => {
+        const url = String(input);
+        if (url.endsWith("/identity/auth/token")) {
+          return Response.json({ token: "moss-token", expiresIn: 300 }, { status: 201 });
+        }
+        if (url.endsWith("/query")) {
+          return Response.json({ docs: [asMossDocument(adjacent)] });
+        }
+        return Response.json([asMossDocument(adjacent), asMossDocument(exact)]);
+      },
+    });
+
+    expect(results).toEqual([exact, adjacent]);
+  });
+
+  test("does not let zero-score lexical documents evict semantic results", async () => {
+    const semantic = Array.from({ length: 5 }, (_, index) => ({
+      sourceFile: "strategy.pdf",
+      page: String(index + 1),
+      text: `Semantically relevant result ${index + 1}.`,
+    }));
+    const unrelated = Array.from({ length: 5 }, (_, index) => ({
+      sourceFile: `unrelated-${index + 1}.pdf`,
+      page: "1",
+      text: "Vacation policy and office snacks.",
+    }));
+
+    const results = await retrieveMossDocuments("profitability trajectory", {
+      environment: mossEnvironment,
+      fetchImpl: async (input) => {
+        const url = String(input);
+        if (url.endsWith("/identity/auth/token")) {
+          return Response.json({ token: "moss-token" }, { status: 201 });
+        }
+        if (url.endsWith("/query")) {
+          return Response.json({ docs: semantic.map(asMossDocument) });
+        }
+        return Response.json(unrelated.map(asMossDocument));
+      },
+    });
+
+    expect(results).toEqual(semantic);
   });
 
   test("falls back to ranked Moss getDocs results when cloud query is unavailable", async () => {

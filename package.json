@@ -13,6 +13,8 @@
     "typecheck": "tsc --noEmit",
     "test": "bun test",
     "ingest": "bun scripts/ingest.ts",
+    "demo:generate": "bun scripts/generate-fdc-pdfs.ts",
+    "demo:seed": "bun scripts/generate-fdc-pdfs.ts && bun scripts/ingest.ts --company=fdc",
     "qwen:test": "bun scripts/test-qwen-image.ts"
   },
   "dependencies": {
