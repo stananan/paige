@@ -1,7 +1,7 @@
 import RoomClient from "./RoomClient";
 
-// The hardcoded 3-person meeting room: you + a friend + Paige (agent participant,
-// wired next). LiveKit handles the room, video tiles, and voice transport.
+// LiveKit handles the human participant tiles and voice transport. Paige's
+// browser-side copilot panel listens, retrieves, answers, and speaks over it.
 export default function RoomPage() {
   return <RoomClient />;
 }

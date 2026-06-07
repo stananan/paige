@@ -39,9 +39,10 @@ Full approved design/plan (outside the repo): `~/.gstack/projects/paige/stanleyh
 
 ## The real next steps
 - **Task #3 — ingest: COMPLETE.** Live verification succeeded against Unsiloed and Moss.
-- **Task #4 — the fast beat (hero):** replace the echo in `PaigeListener.respond()` (move the
-  brain server-side, e.g. a `/api/ask` route): command → Moss retrieve → **LLM via TrueFoundry**
-  → one-line spoken answer (`/api/tts`) + a cited source card + a chart.
+- **Task #4 — the fast beat (hero): IN PROGRESS.** `/api/ask` now performs warm-instance
+  Moss retrieval → **GPT-5.4 Mini via TrueFoundry** → a validated concise answer, citations,
+  and source-grounded chart data. `PaigeListener` renders the result and speaks it through
+  `/api/tts`. Complete browser QA and production verification before marking it done.
 - Then: citations/chart polish (#5), Qwen-vs-MiniMax image race (#6), live upload (#7),
   rehearse (#8), submit (#9). See `README.md` for the full checklist.
 
@@ -53,6 +54,8 @@ src/app/room/RoomClient.tsx prejoin + LiveKitRoom + video grid (client)
 src/app/room/PaigeListener.tsx  Paige's brain (client): Web Speech STT + wake word + chat + TTS playback
 src/app/api/token/route.ts  LiveKit JWT minting (server)
 src/app/api/tts/route.ts    MiniMax TTS -> MP3 (server)
+src/app/api/ask/route.ts    Moss retrieval -> TrueFoundry answer + citations/chart
+src/lib/paige-answer.ts     grounded answer orchestration + output validation
 src/lib/room.ts             hardcoded room name "paige-room"
 src/lib/speech.ts           Web Speech API types + factory
 src/lib/env.ts              typed env accessors
@@ -83,9 +86,9 @@ In `.env` (gitignored). `.env.example` documents all. Deployed ones are also on 
   generated PNG under ignored `data/.qwen-test/`. The key was pasted into an agent chat, so
   rotate it before the final demo deployment.
 - `TRUEFOUNDRY_API_KEY` / `TRUEFOUNDRY_BASE_URL` / `TRUEFOUNDRY_MODEL` — configured for
-  `openai/gpt-4.1-mini`. Live verification succeeded against `/models` and
-  `/chat/completions` (`PAIGE_OK`). Use TrueFoundry for the answer LLM; MiniMax TTS and Qwen
-  image generation remain direct provider integrations.
+  `openai/gpt-5.4-mini`. Live verification succeeded against `/models` and
+  `/chat/completions`. Use TrueFoundry for the answer LLM; MiniMax TTS and Qwen image
+  generation remain direct provider integrations.
 - `DEEPGRAM_API_KEY` — empty (only if reviving `agent/`).
 
 ## How to run

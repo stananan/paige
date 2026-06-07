@@ -1,6 +1,7 @@
 "use client";
 
 import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import type { PaigeAnswer, PaigeChart } from "@/lib/paige-answer";
 import { getSpeechRecognition, type SpeechRecognitionLike } from "@/lib/speech";
 
 // The Web Speech API often hears "Paige" as the homophone "page"/"pages".
@@ -26,13 +27,16 @@ export default function PaigeListener() {
   const [supported, setSupported] = useState(true);
   const [listening, setListening] = useState(false);
   const [heard, setHeard] = useState("");
-  const [reply, setReply] = useState("");
+  const [reply, setReply] = useState<PaigeAnswer | null>(null);
   const [speaking, setSpeaking] = useState(false);
   const [input, setInput] = useState("");
+  const [thinking, setThinking] = useState(false);
+  const [error, setError] = useState("");
 
   const recogRef = useRef<SpeechRecognitionLike | null>(null);
   const speakingRef = useRef(false);
   const wantListeningRef = useRef(false);
+  const requestRef = useRef<AbortController | null>(null);
 
   // Synthesize + play Paige's reply via MiniMax (/api/tts). Pause recognition
   // while she speaks so she doesn't transcribe her own voice.
@@ -75,11 +79,37 @@ export default function PaigeListener() {
   const respond = useCallback(
     async (command: string) => {
       const q = command.trim();
-      // Task #2 spine: echo. The fast beat (task #4) replaces this with
-      // Moss retrieve -> LLM (TrueFoundry) -> cited answer.
-      const text = q ? `You asked: ${q}` : "I'm here. What would you like to know?";
-      setReply(text);
-      await speak(text);
+      if (!q) return;
+
+      requestRef.current?.abort();
+      const controller = new AbortController();
+      requestRef.current = controller;
+      setThinking(true);
+      setReply(null);
+      setError("");
+      try {
+        const response = await fetch("/api/ask", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ question: q }),
+          signal: controller.signal,
+        });
+        const body = (await response.json()) as PaigeAnswer & { error?: string };
+        if (!response.ok) throw new Error(body.error || "Paige couldn't answer");
+
+        setReply(body);
+        setThinking(false);
+        if (requestRef.current === controller) requestRef.current = null;
+        await speak(body.answer);
+      } catch (reason) {
+        if (controller.signal.aborted) return;
+        setError(reason instanceof Error ? reason.message : "Paige couldn't answer");
+      } finally {
+        if (requestRef.current === controller) {
+          requestRef.current = null;
+          setThinking(false);
+        }
+      }
     },
     [speak],
   );
@@ -131,6 +161,7 @@ export default function PaigeListener() {
     } catch {}
 
     return () => {
+      requestRef.current?.abort();
       wantListeningRef.current = false;
       try {
         recog.abort();
@@ -165,14 +196,20 @@ export default function PaigeListener() {
     void respond(q);
   }
 
-  const dot = speaking ? "bg-emerald-400" : listening ? "bg-sky-400" : "bg-white/30";
+  const dot = speaking
+    ? "bg-emerald-400"
+    : thinking
+      ? "bg-amber-300"
+      : listening
+        ? "bg-sky-400"
+        : "bg-white/30";
 
   return (
-    <div className="absolute right-4 top-4 z-10 w-72 rounded-2xl border border-white/10 bg-black/70 p-4 text-white backdrop-blur">
+    <div className="absolute right-4 top-4 z-10 max-h-[calc(100dvh-7rem)] w-[min(27rem,calc(100vw-2rem))] overflow-y-auto rounded-2xl border border-white/10 bg-black/75 p-4 text-white shadow-2xl backdrop-blur">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span
-            className={`h-2.5 w-2.5 rounded-full ${dot} ${speaking || listening ? "animate-pulse" : ""}`}
+            className={`h-2.5 w-2.5 rounded-full ${dot} ${speaking || thinking || listening ? "animate-pulse" : ""}`}
           />
           <span className="font-semibold tracking-tight">Paige</span>
         </div>
@@ -181,7 +218,7 @@ export default function PaigeListener() {
             onClick={toggle}
             className="rounded-full border border-white/20 px-2 py-0.5 text-xs hover:bg-white/10"
           >
-            {speaking ? "Speaking…" : listening ? "Listening…" : "Start"}
+            {speaking ? "Speaking…" : thinking ? "Searching…" : listening ? "Listening…" : "Start"}
           </button>
         )}
       </div>
@@ -195,7 +232,26 @@ export default function PaigeListener() {
             <span className="text-white/40">heard:</span> {heard}
           </p>
         )}
-        {reply && <p className="text-emerald-300">{reply}</p>}
+        {thinking && <p className="text-amber-200">Searching the company documents…</p>}
+        {error && <p className="text-red-300">{error}</p>}
+        {reply && (
+          <div className="space-y-3">
+            <p className="text-base leading-snug text-emerald-200">{reply.answer}</p>
+            {reply.chart && <AnswerChart chart={reply.chart} />}
+            {reply.citations.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {reply.citations.map((citation) => (
+                  <span
+                    key={`${citation.sourceFile}-${citation.page}`}
+                    className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-white/60"
+                  >
+                    {citation.sourceFile} · p.{citation.page}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <form onSubmit={submitChat} className="mt-3 flex gap-1.5">
@@ -207,12 +263,86 @@ export default function PaigeListener() {
         />
         <button
           type="submit"
-          className="rounded-lg border border-white/20 px-2.5 text-sm hover:bg-white/10"
+          disabled={thinking || speaking}
+          className="rounded-lg border border-white/20 px-2.5 text-sm hover:bg-white/10 disabled:opacity-40"
           aria-label="Send to Paige"
         >
           ↑
         </button>
       </form>
     </div>
+  );
+}
+
+function AnswerChart({ chart }: { chart: PaigeChart }) {
+  const width = 380;
+  const height = 180;
+  const left = 38;
+  const top = 18;
+  const bottom = 42;
+  const plotHeight = height - top - bottom;
+  const maxValue = Math.max(...chart.values, 0);
+  const minValue = Math.min(...chart.values, 0);
+  const range = maxValue - minValue || 1;
+  const slotWidth = (width - left - 12) / chart.values.length;
+  const zeroY = top + (maxValue / range) * plotHeight;
+
+  return (
+    <figure className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
+      <figcaption className="mb-2">
+        <p className="text-xs font-medium text-white/80">{chart.title}</p>
+        <p className="text-[10px] text-white/40">{chart.unit}</p>
+      </figcaption>
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        role="img"
+        aria-label={`${chart.title}, ${chart.unit}`}
+        className="w-full"
+      >
+        <line
+          x1={left}
+          y1={zeroY}
+          x2={width - 8}
+          y2={zeroY}
+          stroke="rgba(255,255,255,.22)"
+        />
+        {chart.values.map((value, index) => {
+          const barHeight = (Math.abs(value) / range) * plotHeight;
+          const x = left + index * slotWidth + slotWidth * 0.18;
+          const y = value >= 0 ? zeroY - barHeight : zeroY;
+          return (
+            <g key={`${chart.labels[index]}-${index}`}>
+              <rect
+                x={x}
+                y={y}
+                width={slotWidth * 0.64}
+                height={Math.max(2, barHeight)}
+                rx="4"
+                fill="rgb(52 211 153)"
+                opacity="0.85"
+              />
+              <text
+                x={x + slotWidth * 0.32}
+                y={value >= 0 ? Math.max(12, y - 5) : y + barHeight + 13}
+                textAnchor="middle"
+                fill="rgba(255,255,255,.8)"
+                fontSize="10"
+              >
+                {value.toLocaleString()}
+              </text>
+              <text
+                x={x + slotWidth * 0.32}
+                y={height - 16}
+                textAnchor="middle"
+                fill="rgba(255,255,255,.55)"
+                fontSize="10"
+              >
+                {chart.labels[index]}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+    </figure>
   );
 }
