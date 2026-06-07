@@ -5,6 +5,9 @@ import {
   encodePaigeRoomEvent,
   interactionIdFromImageName,
   isSubstantiveTranscript,
+  preparedVisualForAnswer,
+  PREPARED_Q2_VISUAL_MODEL,
+  PREPARED_Q2_VISUAL_PATH,
   sharedImageFileName,
   shouldGenerateVisual,
   transcriptWordCount,
@@ -169,5 +172,38 @@ describe("Paige room protocol", () => {
         chart: null,
       }),
     ).toBe(false);
+  });
+
+  test("uses the prepared Q2 comparison image only for the matching chart", () => {
+    const q2Answer = {
+      answer: "Revenue increased from Q2 2025 to Q2 2026.",
+      chart: {
+        title: "Revenue — Q2 comparison",
+        labels: ["Q2 2025 actual", "Q2 2026 forecast"],
+        values: [16.8, 21.6],
+        unit: "USD millions",
+      },
+      citations: [
+        { sourceFile: "q2-2025.pdf", page: "1" },
+        { sourceFile: "q2-2026.pdf", page: "1" },
+      ],
+    };
+
+    expect(
+      preparedVisualForAnswer("Give me a drawing comparing both Q2 reports", q2Answer),
+    ).toEqual({
+      path: PREPARED_Q2_VISUAL_PATH,
+      model: PREPARED_Q2_VISUAL_MODEL,
+    });
+    expect(
+      preparedVisualForAnswer("Create a Q3 revenue graph", {
+        ...q2Answer,
+        chart: {
+          ...q2Answer.chart,
+          title: "Revenue — Q3 history",
+          labels: ["Q3 2024", "Q3 2025"],
+        },
+      }),
+    ).toBeNull();
   });
 });

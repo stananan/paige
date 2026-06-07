@@ -34,6 +34,9 @@ import {
   interactionIdFromImageName,
   PAIGE_DATA_TOPIC,
   PAIGE_IMAGE_TOPIC,
+  PREPARED_Q2_VISUAL_MODEL,
+  PREPARED_Q2_VISUAL_PATH,
+  preparedVisualForAnswer,
   sharedImageFileName,
   shouldGenerateVisual,
   visualRequestForAnswer,
@@ -152,6 +155,12 @@ export function usePaige(liveKitToken: string): PaigeState {
     model: string;
     interactionId: string;
   } | null>(null);
+
+  useEffect(() => {
+    const image = new Image();
+    image.decoding = "async";
+    image.src = PREPARED_Q2_VISUAL_PATH;
+  }, []);
 
   const clearVisual = useCallback(() => {
     if (visualUrlRef.current) URL.revokeObjectURL(visualUrlRef.current);
@@ -371,16 +380,19 @@ export function usePaige(liveKitToken: string): PaigeState {
       kind: VisualRequestKind,
     ) => {
       try {
-        const response = await fetch("/api/image", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            topic: question,
-            answer: answer.answer,
-            kind,
-            chart: answer.chart,
-          }),
-        });
+        const preparedVisual = preparedVisualForAnswer(question, answer);
+        const response = preparedVisual
+          ? await fetch(preparedVisual.path, { cache: "force-cache" })
+          : await fetch("/api/image", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                topic: question,
+                answer: answer.answer,
+                kind,
+                chart: answer.chart,
+              }),
+            });
         if (!response.ok) {
           const body = (await response.json().catch(() => ({}))) as {
             error?: string;
@@ -391,7 +403,9 @@ export function usePaige(liveKitToken: string): PaigeState {
         const contentType =
           response.headers.get("content-type") || blob.type || "image/png";
         const model =
-          response.headers.get("x-paige-image-model") || "AI";
+          preparedVisual?.model ||
+          response.headers.get("x-paige-image-model") ||
+          "AI";
         const name = sharedImageFileName(
           interactionId,
           model,
@@ -579,6 +593,32 @@ export function usePaige(liveKitToken: string): PaigeState {
   ]);
 
   useEffect(() => {
+    const handleImmediateInterrupt = (event: KeyboardEvent) => {
+      if (
+        event.code !== "Space" ||
+        event.repeat ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.altKey ||
+        isTextEntryKeyboardTarget(event.target) ||
+        !speakingRef.current
+      ) {
+        return;
+      }
+      event.preventDefault();
+      stopSpeech();
+      void publishEvent({
+        ...eventBase(),
+        type: "interrupt",
+        interactionId: currentInteractionIdRef.current || undefined,
+      });
+    };
+
+    window.addEventListener("keydown", handleImmediateInterrupt);
+    return () => window.removeEventListener("keydown", handleImmediateInterrupt);
+  }, [eventBase, publishEvent, stopSpeech]);
+
+  useEffect(() => {
     if (!supported || !listening) return;
 
     const cancelRecording = () => {
@@ -605,15 +645,6 @@ export function usePaige(liveKitToken: string): PaigeState {
       event.preventDefault();
       pushToTalkHeldRef.current = true;
       setRecording(true);
-      const interrupted = speakingRef.current;
-      stopSpeech();
-      if (interrupted) {
-        void publishEvent({
-          ...eventBase(),
-          type: "interrupt",
-          interactionId: currentInteractionIdRef.current || undefined,
-        });
-      }
       transcriberRef.current?.beginPushToTalk();
     };
     const handleKeyUp = (event: KeyboardEvent) => {
@@ -638,7 +669,7 @@ export function usePaige(liveKitToken: string): PaigeState {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       cancelRecording();
     };
-  }, [eventBase, listening, publishEvent, stopSpeech, supported]);
+  }, [listening, supported]);
 
   useEffect(() => {
     room.registerByteStreamHandler(
@@ -1152,6 +1183,21 @@ export function AnswerVisual({
   visualFailed?: boolean;
 }) {
   if (visualUrl) {
+    const preparedQ2Visual =
+      visualModel === PREPARED_Q2_VISUAL_MODEL;
+    if (preparedQ2Visual) {
+      return (
+        <figure className="overflow-hidden rounded-xl border border-white/10 bg-white">
+          {/* eslint-disable-next-line @next/next/no-img-element -- shared blob/static visual */}
+          <img
+            src={visualUrl}
+            alt="FDC Q2 2025 actual results compared with the Q2 2026 preliminary forecast"
+            className="block h-auto w-full object-contain"
+          />
+        </figure>
+      );
+    }
+
     const values = chart?.values ?? [];
     const maxValue = Math.max(...values, 0);
     const minValue = Math.min(...values, 0);

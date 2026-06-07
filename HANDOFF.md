@@ -27,8 +27,9 @@ Full approved design/plan (outside the repo): `~/.gstack/projects/paige/stanleyh
     microphone track. Space key-down starts an intentional utterance and key-up is the only
     submission path; a short PCM pre-roll protects the first syllable. The browser sends a
     16 kHz WAV utterance to authenticated `/api/transcribe` and receives the speaker name
-    from the verified LiveKit token. Holding Space while Paige speaks interrupts her after
-    at least three substantive words, but the new request is not sent until Space is released.
+    from the verified LiveKit token. Pressing Space while Paige speaks interrupts her
+    immediately; the same press starts a new utterance, but it is not sent until Space is
+    released.
   - **Voice (TTS):** **MiniMax `speech-2.8-hd`, voice `English_radiant_girl`, speed `1.2`**
     via `/api/tts`. Plays MP3 in-browser. This configuration was live-verified.
   - **Conversation context:** push-to-talk and typed follow-ups include the last six turns.
@@ -77,6 +78,9 @@ Full approved design/plan (outside the repo): `~/.gstack/projects/paige/stanleyh
   image/draw synonyms use the same deterministic source extraction as graph/chart requests,
   and creative scenes bypass Moss. Prompts include the actual subject plus the chart's
   source-grounded direction instead of requesting a generic abstract background.
+- **Prepared demo visual:** Q2 2025-vs-Q2 2026 drawing/comparison/graph requests use
+  `public/demo-assets/fdc-q2-2025-vs-2026.jpg` immediately instead of waiting for image
+  generation. Other supported visuals still use MiniMax.
 - **General conversation + resilience: COMPLETE.** Obvious conversation bypasses Moss and
   goes directly to `generateConversationalAnswer`; ambiguous business questions still
   retrieve. Retrieval errors and answer-validation failures use deterministic report/chart
@@ -121,6 +125,7 @@ scripts/generate-fdc-pdfs.ts reproducible data/fdc PDF generator
 scripts/pdf.ts              minimal text-PDF writer used by the demo generator
 scripts/test-qwen-image.ts  live z-image-turbo smoke test
 src/lib/qwen-image.ts       validated server-only DashScope image client
+public/demo-assets/         prepared Q2 visual + optimized recorded Nico loop
 data/                       corpus PDFs (gitignored), pre-ingested before demo
 agent/                      parked Python LiveKit-Agents worker (Deepgram path)
 ```
@@ -192,6 +197,9 @@ In `.env` (gitignored). `.env.example` documents all. Deployed ones are also on 
    presentation and interruption state across browsers. A browser cannot silently start a
    real screen share without a user permission gesture. The real-participant path is still
    parked in `agent/`.
+12. **Nico's demo tile is recorded.** `/room` shows an optimized, muted 12-second loop
+    labeled `Nico · recorded`; it disappears automatically if a real participant joins with
+    the identity `nico`.
 
 ## Demo target
 Two people in `/room` on webcams. Open `/demo-company` for the prepared FDC prompts, then:

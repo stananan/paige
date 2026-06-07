@@ -7,6 +7,9 @@ import {
 export const PAIGE_DATA_TOPIC = "paige.room.v1";
 export const PAIGE_IMAGE_TOPIC = "paige.image.v1";
 export const MAX_SHARED_HISTORY = 6;
+export const PREPARED_Q2_VISUAL_PATH =
+  "/demo-assets/fdc-q2-2025-vs-2026.jpg";
+export const PREPARED_Q2_VISUAL_MODEL = "Prepared FDC Q2 comparison";
 
 interface PaigeEventBase {
   version: 1;
@@ -245,6 +248,28 @@ export function shouldGenerateVisual(
   answer: Pick<PaigeAnswer, "answer" | "citations" | "chart">,
 ): boolean {
   return visualRequestForAnswer(question, answer) !== null;
+}
+
+export function preparedVisualForAnswer(
+  question: string,
+  answer: Pick<PaigeAnswer, "answer" | "citations" | "chart">,
+): { path: string; model: string } | null {
+  if (!visualRequestForAnswer(question, answer) || !answer.chart) return null;
+  const chartContext = [
+    answer.chart.title,
+    ...answer.chart.labels,
+  ].join(" ");
+  if (
+    !/\bQ2\b/i.test(chartContext) ||
+    !/\b2025\b/.test(chartContext) ||
+    !/\b2026\b/.test(chartContext)
+  ) {
+    return null;
+  }
+  return {
+    path: PREPARED_Q2_VISUAL_PATH,
+    model: PREPARED_Q2_VISUAL_MODEL,
+  };
 }
 
 export { visualRequestForAnswer, type VisualRequestKind };
