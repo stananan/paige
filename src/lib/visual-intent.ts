@@ -8,6 +8,10 @@ export interface VisualAnswerShape {
 
 const DATA_VISUAL_PATTERN =
   /\b(?:chart|graph|plot|dashboard|data\s+visuali[sz]ation)\b/i;
+const DATA_COMPARISON_PATTERN =
+  /\b(?:compare|comparison|versus|vs\.?|trend|over time|year over year|yoy|across periods?)\b/i;
+const NUMERIC_DATA_PATTERN =
+  /\b(?:data points?|statistics?|metrics?|revenue|arr|margin|income|cash flow|customers?|headcount|employees?|bookings?|churn|retention|nrr|q[1-4]|quarter\s*[1-4]|first quarter|second quarter|third quarter|fourth quarter)\b/i;
 const VISUAL_NOUN_PATTERN =
   /\b(?:visual|visuali[sz](?:e|ation)?|graphic|diagram|infographic|illustration|image|picture|sketch|rendering)\b/i;
 const CREATIVE_ACTION_PATTERN =
@@ -32,6 +36,15 @@ export function answerDeclinesAvailableData(answer: string): boolean {
   return UNAVAILABLE_DATA_PATTERN.test(answer);
 }
 
+export function visualRequiresChart(question: string): boolean {
+  if (classifyVisualRequest(question) !== "data") return false;
+  return (
+    DATA_VISUAL_PATTERN.test(question) ||
+    DATA_COMPARISON_PATTERN.test(question) ||
+    NUMERIC_DATA_PATTERN.test(question)
+  );
+}
+
 export function visualRequestForAnswer(
   question: string,
   answer: VisualAnswerShape,
@@ -42,5 +55,6 @@ export function visualRequestForAnswer(
   if (!kind) return null;
   if (kind === "creative") return { kind };
   if (answerDeclinesAvailableData(answer.answer)) return null;
+  if (visualRequiresChart(question)) return null;
   return answer.citations.length > 0 ? { kind } : null;
 }

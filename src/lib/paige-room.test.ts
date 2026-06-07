@@ -114,6 +114,27 @@ describe("Paige room protocol", () => {
       }),
     ).toBe(true);
     expect(
+      shouldGenerateVisual(
+        "Compare the Q2 2025 actual report with the Q2 2026 forecast and create a visual",
+        {
+          answer:
+            "Q2 2025 showed $16.8 million in revenue, while Q2 2026 includes $19.9 million in subscription revenue and $1.7 million in services.",
+          citations: [
+            { sourceFile: "q2-2025.pdf", page: "1" },
+            { sourceFile: "q2-2026.pdf", page: "1" },
+          ],
+          chart: null,
+        },
+      ),
+    ).toBe(false);
+    expect(
+      shouldGenerateVisual("Create an image of our biggest security gap", {
+        answer: "The largest open issue is privileged-access review coverage.",
+        citations: [{ sourceFile: "security.pdf", page: "3" }],
+        chart: null,
+      }),
+    ).toBe(true);
+    expect(
       shouldGenerateVisual("What did the report say?", {
         answer: "The report shows a stronger Q2 outlook.",
         citations: [{ sourceFile: "q2.pdf", page: "1" }],

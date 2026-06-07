@@ -229,7 +229,14 @@ export function retrievalQueryForQuestion(question: string): string {
     for (const quarter of ["Q1", "Q2", "Q3", "Q4"]) quarters.add(quarter);
   }
   if (quarters.size === 0) return question;
-  if (years.size === 0) years.add(String(DEMO_CURRENT_YEAR));
+  if (years.size === 0) {
+    const comparesPeriods =
+      /\b(?:compare|comparison|both|versus|vs\.?|year over year|yoy)\b/i.test(
+        question,
+      );
+    years.add(String(DEMO_CURRENT_YEAR));
+    if (comparesPeriods) years.add(String(DEMO_CURRENT_YEAR - 1));
+  }
 
   const periods = [...years].flatMap((year) =>
     [...quarters].map((quarter) => `${quarter} ${year}`),

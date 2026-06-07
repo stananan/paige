@@ -23,6 +23,12 @@ describe("buildMiniMaxImageRequest", () => {
       n: 1,
       prompt_optimizer: true,
     });
+    expect(
+      buildMiniMaxImageRequest({
+        prompt: "A constrained presentation image",
+        promptOptimizer: false,
+      }).prompt_optimizer,
+    ).toBe(false);
   });
 
   test("rejects empty prompts and unsupported aspect ratios", () => {

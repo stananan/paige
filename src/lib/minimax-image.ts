@@ -23,6 +23,7 @@ type Fetch = (input: string | URL | Request, init?: RequestInit) => Promise<Resp
 export interface MiniMaxImageInput {
   prompt: string;
   aspectRatio?: string;
+  promptOptimizer?: boolean;
 }
 
 export interface MiniMaxImageResult {
@@ -66,7 +67,7 @@ export function buildMiniMaxImageRequest(input: MiniMaxImageInput) {
     aspect_ratio: validatedAspectRatio(input.aspectRatio),
     response_format: "url",
     n: 1,
-    prompt_optimizer: true,
+    prompt_optimizer: input.promptOptimizer ?? true,
   };
 }
 

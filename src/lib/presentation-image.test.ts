@@ -24,8 +24,9 @@ describe("buildPresentationImagePrompt", () => {
     });
     expect(prompt).toContain("horizontal 16:9");
     expect(prompt).toContain("Revenue");
-    expect(prompt).toContain("upward progression");
-    expect(prompt).toContain("business growth");
+    expect(prompt).toContain("warehouse inventory");
+    expect(prompt).toContain("Do not depict bars");
+    expect(prompt).toContain("source-verified chart");
     expect(prompt).toContain("Do not include text");
   });
 
@@ -82,6 +83,7 @@ describe("generatePresentationImage", () => {
     expect(requestBody).toMatchObject({
       model: "image-01",
       aspect_ratio: "16:9",
+      prompt_optimizer: false,
     });
     expect(result.model).toBe("MiniMax image-01");
     expect(result.bytes).toEqual(new Uint8Array([255, 216, 255]));

@@ -49,16 +49,16 @@ function cleanedText(value: string, removeNumbers: boolean): string {
 
 function dataMotif(subject: string): string {
   if (/\b(?:operating income|profit|profitability)\b/i.test(subject)) {
-    return "a clear transition from pressure below a baseline into healthy positive performance, expressed as dimensional glass forms";
+    return "a real multi-location operations team moving from cost pressure into healthy, efficient execution";
   }
   if (/\b(?:revenue|arr|bookings|sales|pipeline|cash)\b/i.test(subject)) {
-    return "disciplined business growth expressed through luminous architectural columns and flowing financial momentum";
+    return "connected retail and field-service operations expanding through warehouse inventory, dispatch vehicles, field teams, and customer activity";
   }
   if (/\b(?:margin|retention|nrr|churn)\b/i.test(subject)) {
-    return "operating efficiency and durable customer retention expressed through layered loops and stable rising forms";
+    return "efficient operations and durable customer relationships across a connected service network";
   }
   if (/\b(?:customer|renewal|account)\b/i.test(subject)) {
-    return "a connected network of customers and storefront operations with clear differences in scale and health";
+    return "a connected network of customers and storefront operations with visible activity and collaboration";
   }
   if (/\b(?:security|compliance|incident|risk)\b/i.test(subject)) {
     return "resilient digital infrastructure, protection, and risk containment expressed with shield-like geometry and connected systems";
@@ -66,37 +66,7 @@ function dataMotif(subject: string): string {
   if (/\b(?:support|ticket|csat|sla)\b/i.test(subject)) {
     return "a modern service operations center with coordinated support flows and clear operational movement";
   }
-  return "a concrete, subject-specific business scene expressed through dimensional data forms";
-}
-
-function chartDirection(values: number[]): string {
-  if (values.length < 2) return "Show one clear focal data form.";
-  const comparisons = values.slice(1).map((value, index) => value - values[index]);
-  const rises =
-    comparisons.every((difference) => difference >= 0) &&
-    comparisons.some((difference) => difference > 0);
-  const falls =
-    comparisons.every((difference) => difference <= 0) &&
-    comparisons.some((difference) => difference < 0);
-  const level = comparisons.every((difference) => difference === 0);
-  const crossesZero = values.some((value) => value < 0) && values.some((value) => value >= 0);
-  const count =
-    ["one", "two", "three", "four", "five", "six", "seven", "eight"][values.length - 1] ??
-    "several";
-
-  if (crossesZero) {
-    return `Use ${count} prominent unlabeled data forms in source order, visibly crossing from below a central baseline to above it.`;
-  }
-  if (rises) {
-    return `Use ${count} prominent unlabeled data forms in source order with a clear left-to-right upward progression.`;
-  }
-  if (falls) {
-    return `Use ${count} prominent unlabeled data forms in source order with a clear left-to-right downward progression.`;
-  }
-  if (level) {
-    return `Use ${count} prominent unlabeled data forms in source order at matching heights to communicate stable performance.`;
-  }
-  return `Use ${count} prominent unlabeled data forms with visibly varied heights and a balanced left-to-right comparison.`;
+  return "a concrete, subject-specific scene inside a modern distributed business";
 }
 
 /**
@@ -126,18 +96,15 @@ export function buildPresentationImagePrompt(
   const topicSubject = cleanedText(input.topic, true);
   const supportingSubject = input.chart ? topicSubject : answerSubject || topicSubject;
   const subject = [chartSubject, supportingSubject].filter(Boolean).join(". ");
-  const chartComposition =
-    input.chart && input.chart.values.length > 0
-      ? chartDirection(input.chart.values)
-      : "Create one clear focal composition that directly communicates the retrieved business subject.";
 
   return [
     `Create one polished horizontal 16:9 editorial data illustration about: ${subject || "company performance"}.`,
     `Subject relevance is mandatory: show ${dataMotif(subject)}.`,
-    chartComposition,
+    "Create a concrete contextual scene, not a chart. Do not depict bars, columns, lines, graph axes, dashboards, tables, gauges, or any countable data marks.",
+    "Keep the center and lower third visually calm and uncluttered so the application can place its source-verified chart there.",
     "Use a premium deep-navy palette with cyan and emerald accents, cinematic soft depth, strong contrast, balanced composition, and generous safe margins.",
-    "This is a visual metaphor, not the evidence layer. Do not add axes, legends, tables, dashboards, or extra data series.",
-    "Do not include text, words, letters, numbers, labels, logos, watermarks, or UI.",
+    "This generated image is context only, never the evidence layer.",
+    "Avoid storefront signs, billboards, screens, and packaging. Do not include text, words, letters, numbers, labels, logos, watermarks, or UI.",
     "The application will place the verified source labels and exact values over this image.",
   ].join(" ");
 }
@@ -169,7 +136,7 @@ export async function generatePresentationImage(
 
     try {
       const result = await generateMiniMaxImage(
-        { prompt, aspectRatio: "16:9" },
+        { prompt, aspectRatio: "16:9", promptOptimizer: false },
         {
           environment,
           fetchImpl,

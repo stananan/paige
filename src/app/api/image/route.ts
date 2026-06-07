@@ -3,7 +3,10 @@ import {
   buildPresentationImagePrompt,
   generatePresentationImage,
 } from "@/lib/presentation-image";
-import type { VisualRequestKind } from "@/lib/visual-intent";
+import {
+  visualRequiresChart,
+  type VisualRequestKind,
+} from "@/lib/visual-intent";
 
 // Paige's "slow beat": a generated illustration that arrives after the spoken,
 // cited answer. MiniMax creates the backdrop while exact values remain in HTML.
@@ -75,6 +78,12 @@ export async function POST(request: NextRequest) {
   }
   if (topic.length > MAX_TOPIC_LENGTH) {
     topic = topic.slice(0, MAX_TOPIC_LENGTH);
+  }
+  if (kind === "data" && visualRequiresChart(topic) && !chart) {
+    return NextResponse.json(
+      { error: "Numeric visuals require source-verified chart data" },
+      { status: 422 },
+    );
   }
 
   try {

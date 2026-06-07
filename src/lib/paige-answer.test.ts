@@ -501,6 +501,23 @@ describe("extractGroundedTableChart", () => {
     });
   });
 
+  test("defaults a yearless comparison of both Q2 reports to revenue", () => {
+    expect(
+      extractGroundedTableChart(
+        "Can you compare both Q2 reports and make a visual?",
+        q2Documents,
+      ),
+    ).toEqual({
+      chart: {
+        title: "REVENUE — Q2 comparison",
+        labels: ["Q2 2025 actual", "Q2 2026 forecast"],
+        values: [16.8, 21.6],
+        unit: "USD millions",
+      },
+      sources: q2Documents,
+    });
+  });
+
   test("returns no chart when the question does not name a table metric", () => {
     expect(extractGroundedTableChart("Compare the last several years", [q3History])).toBeNull();
   });
@@ -894,6 +911,9 @@ describe("retrieval intent", () => {
   test("expands relative demo periods without changing explicit years", () => {
     expect(
       retrievalQueryForQuestion("Create a graph comparing Q2 revenue this year and last year"),
+    ).toContain("Q2 2026 and Q2 2025");
+    expect(
+      retrievalQueryForQuestion("Can you compare both Q2 reports and make a graph?"),
     ).toContain("Q2 2026 and Q2 2025");
     expect(retrievalQueryForQuestion("What was Q2 2025 revenue?")).toBe(
       "What was Q2 2025 revenue?",
