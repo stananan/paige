@@ -3,6 +3,11 @@
 .env*
 /data/
 .claude/
+.gstack/
+.git/
+.next/
+.vercel/
+node_modules/
 agent/
 
 # Vercel's builder currently rejects this npm-11 lockfile with "Invalid Version".
